@@ -1,6 +1,6 @@
 {
-    "name": "myapp",
-    "short_name": "myapp",
+    "name": "lexilens",
+    "short_name": "lexilens",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

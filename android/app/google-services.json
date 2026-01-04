@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "168798489302",
+    "project_id": "lexilens-581cd",
+    "storage_bucket": "lexilens-581cd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168798489302:android:86afb8f098686ab5cf9777",
+        "android_client_info": {
+          "package_name": "com.example.lexilens"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFU9glh3U9q8kwX7jNwDu2WXZ7nyiVwxk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

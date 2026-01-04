@@ -1,0 +1,16 @@
+# ML Kit Text Recognition
+-keep class com.google.mlkit.vision.text.** { *; }
+-keep class com.google.android.gms.internal.** { *; }
+-dontwarn com.google.mlkit.vision.text.**
+
+# Keep all text recognizer options
+-keep class com.google.mlkit.vision.text.chinese.** { *; }
+-keep class com.google.mlkit.vision.text.devanagari.** { *; }
+-keep class com.google.mlkit.vision.text.japanese.** { *; }
+-keep class com.google.mlkit.vision.text.korean.** { *; }
+-keep class com.google.mlkit.vision.text.latin.** { *; }
+
+# Prevent obfuscation of ML Kit
+-keepclassmembers class * {
+    @com.google.android.gms.common.annotation.KeepName *;
+}

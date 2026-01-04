@@ -1,0 +1,468 @@
+// ignore_for_file: deprecated_member_use
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:lexilens/bloc/app_bloc.dart';
+import 'package:lexilens/bloc/app_events.dart';
+import 'package:lexilens/bloc/app_states.dart';
+
+class TextOverlayScreen extends StatefulWidget {
+  final String imagePath;
+  final List<TextBlock> textBlocks;
+
+  const TextOverlayScreen({
+    super.key,
+    required this.imagePath,
+    required this.textBlocks,
+  });
+
+  @override
+  State<TextOverlayScreen> createState() => _TextOverlayScreenState();
+}
+
+class _TextOverlayScreenState extends State<TextOverlayScreen> {
+  bool _showOverlay = true;
+  final ScrollController _scrollController = ScrollController();
+  ui.Image? _decodedImage;
+  Size? _imageDisplaySize;
+  final GlobalKey _imageKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImage();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _getImageDisplaySize();
+    });
+  }
+
+  Future<void> _loadImage() async {
+    final imageFile = File(widget.imagePath);
+    final bytes = await imageFile.readAsBytes();
+    final image = await decodeImageFromList(bytes);
+    if (mounted) {
+      setState(() {
+        _decodedImage = image;
+      });
+      _getImageDisplaySize();
+    }
+  }
+
+  void _getImageDisplaySize() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final RenderBox? renderBox = 
+          _imageKey.currentContext?.findRenderObject() as RenderBox?;
+      if (renderBox != null && mounted) {
+        setState(() {
+          _imageDisplaySize = renderBox.size;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    context.read<AppBloc>().add(StopTextToSpeech());
+    super.dispose();
+  }
+
+  String get _extractedText {
+    return widget.textBlocks.map((block) => block.text).join('\n\n');
+  }
+
+  List<String> get _allWords {
+    return _extractedText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  }
+
+  void _togglePlayPause(BuildContext context, AppState state) {
+    if (state.readingState == ReadingState.playing) {
+      context.read<AppBloc>().add(PauseTextToSpeech());
+    } else if (state.readingState == ReadingState.paused) {
+      context.read<AppBloc>().add(ResumeTextToSpeech());
+    } else {
+      context.read<AppBloc>().add(StartTextToSpeech(text: _extractedText));
+    }
+  }
+
+  void _stopReading(BuildContext context) {
+    context.read<AppBloc>().add(StopTextToSpeech());
+  }
+
+  void _copyToClipboard() {
+    Clipboard.setData(ClipboardData(text: _extractedText));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Text copied to clipboard'),
+        duration: Duration(seconds: 2),
+        backgroundColor: Color(0xFFB789DA),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<AppBloc, AppState>(
+      builder: (context, state) {
+        return Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(
+            backgroundColor: const Color(0xFFB789DA),
+            title: const Text(
+              'Recognized Text',
+              style: TextStyle(
+                fontFamily: 'OpenDyslexic',
+                color: Colors.white,
+              ),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () {
+                _stopReading(context);
+                Navigator.pop(context);
+              },
+            ),
+            actions: [
+              IconButton(
+                icon: Icon(
+                  _showOverlay ? Icons.visibility : Icons.visibility_off,
+                  color: Colors.white,
+                ),
+                tooltip: _showOverlay ? 'Hide Overlay' : 'Show Overlay',
+                onPressed: () {
+                  setState(() {
+                    _showOverlay = !_showOverlay;
+                  });
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.white),
+                onPressed: () => _showSettingsDialog(context, state),
+              ),
+              if (state.readingState != ReadingState.idle)
+                IconButton(
+                  icon: const Icon(Icons.stop, color: Colors.white),
+                  onPressed: () => _stopReading(context),
+                ),
+            ],
+          ),
+          body: InteractiveViewer(
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: Center(
+              child: _buildOverlayContent(state),
+            ),
+          ),
+          bottomNavigationBar: Container(
+            color: const Color(0xFFB789DA),
+            padding: const EdgeInsets.all(16),
+            child: SafeArea(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildBottomButton(
+                    icon: state.readingState == ReadingState.playing 
+                        ? Icons.pause 
+                        : (state.readingState == ReadingState.paused 
+                            ? Icons.play_arrow 
+                            : Icons.play_arrow),
+                    label: state.readingState == ReadingState.playing 
+                        ? 'Pause' 
+                        : (state.readingState == ReadingState.paused 
+                            ? 'Resume' 
+                            : 'Read'),
+                    onTap: () => _togglePlayPause(context, state),
+                  ),
+                  _buildBottomButton(
+                    icon: Icons.copy,
+                    label: 'Copy',
+                    onTap: _copyToClipboard,
+                  ),
+                  _buildBottomButton(
+                    icon: Icons.save,
+                    label: 'Save',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Save feature coming soon!'),
+                          backgroundColor: Color(0xFFB789DA),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildBottomButton(
+                    icon: Icons.share,
+                    label: 'Share',
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Share feature coming soon!'),
+                          backgroundColor: Color(0xFFB789DA),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOverlayContent(AppState state) {
+    if (_decodedImage == null || _imageDisplaySize == null) {
+      return Image.file(
+        File(widget.imagePath),
+        key: _imageKey,
+        fit: BoxFit.contain,
+      );
+    }
+
+    return Stack(
+      children: [
+        // Original image
+        Image.file(
+          File(widget.imagePath),
+          key: _imageKey,
+          fit: BoxFit.contain,
+        ),
+        // Text overlay
+        if (_showOverlay)
+          Positioned.fill(
+            child: CustomPaint(
+              painter: OverlayStyle(
+                textBlocks: widget.textBlocks,
+                imageActualSize: Size(
+                  _decodedImage!.width.toDouble(),
+                  _decodedImage!.height.toDouble(),
+                ),
+                imageDisplaySize: _imageDisplaySize!,
+                currentWordIndex: state.readingState != ReadingState.idle
+                    ? state.currentWordIndex
+                    : -1,
+                allWords: _allWords,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBottomButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white, size: 24),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontFamily: 'OpenDyslexic',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => BlocProvider.value(
+        value: context.read<AppBloc>(),
+        child: BlocBuilder<AppBloc, AppState>(
+          builder: (context, state) {
+            return AlertDialog(
+              title: const Text(
+                'Audio Settings',
+                style: TextStyle(fontFamily: 'OpenDyslexic'),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Reading Speed: ${(state.readingSpeed * 2).toStringAsFixed(1)}x',
+                    style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                  ),
+                  Slider(
+                    value: state.readingSpeed,
+                    min: 0.1,
+                    max: 1.0,
+                    divisions: 9,
+                    activeColor: const Color(0xFFB789DA),
+                    onChanged: (value) {
+                      context.read<AppBloc>().add(AdjustSpeed(value));
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Volume: ${(state.volume * 100).toInt()}%',
+                    style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                  ),
+                  Slider(
+                    value: state.volume,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 10,
+                    activeColor: const Color(0xFFB789DA),
+                    onChanged: (value) {
+                      context.read<AppBloc>().add(AdjustVolume(value));
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(
+                      color: Color(0xFFB789DA),
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class OverlayStyle extends CustomPainter {
+  final List<TextBlock> textBlocks;
+  final Size imageActualSize;
+  final Size imageDisplaySize;
+  final int currentWordIndex;
+  final List<String> allWords;
+
+  OverlayStyle({
+    required this.textBlocks,
+    required this.imageActualSize,
+    required this.imageDisplaySize,
+    required this.currentWordIndex,
+    required this.allWords,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scaleX = imageDisplaySize.width / imageActualSize.width;
+    final scaleY = imageDisplaySize.height / imageActualSize.height;
+    int globalWordIndex = 0;
+    for (final block in textBlocks) {
+      for (final line in block.lines) {
+        final boundingBox = line.boundingBox;
+        final left = boundingBox.left * scaleX;
+        final top = boundingBox.top * scaleY;
+        final right = boundingBox.right * scaleX;
+        final bottom = boundingBox.bottom * scaleY;
+        final scaledRect = Rect.fromLTRB(left, top, right, bottom);
+        final lineHeight = scaledRect.height;
+        final lineWidth = scaledRect.width;
+        final lineText = line.text;
+        final words = lineText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        if (words.isEmpty) continue;
+        final lineStartIndex = globalWordIndex;
+        final lineEndIndex = lineStartIndex + words.length;
+        final isLineActive = currentWordIndex >= lineStartIndex && 
+                             currentWordIndex < lineEndIndex;
+        final backgroundPaint = Paint()
+          ..color = const Color(0xFFEEEEEE).withOpacity(0.75)
+          ..style = PaintingStyle.fill;
+        final bgRect = RRect.fromRectAndRadius(
+          Rect.fromLTRB(
+            left - 4,
+            top - 2,
+            right + 4,
+            bottom + 2,
+          ),
+          const Radius.circular(4),
+        );
+        
+        canvas.drawRRect(bgRect, backgroundPaint);
+        final fontSize = (lineHeight * 0.5).clamp(8.0, 14.0);
+        final testStyle = TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w500,
+          fontFamily: 'OpenDyslexic',
+          height: 1.0,
+        );
+        final testPainter = TextPainter(
+          text: TextSpan(text: lineText, style: testStyle),
+          textDirection: TextDirection.ltr,
+        );
+        testPainter.layout();
+        final availableWidth = lineWidth - 8; 
+        final scaleFactor = testPainter.width > availableWidth 
+            ? availableWidth / testPainter.width 
+            : 1.0;
+        final adjustedFontSize = (fontSize * scaleFactor).clamp(7.0, 14.0);
+        double currentX = left + 4;
+        for (int wordIdx = 0; wordIdx < words.length; wordIdx++) {
+          final word = words[wordIdx];
+          final isCurrentWord = isLineActive && 
+                                (globalWordIndex + wordIdx) == currentWordIndex;
+          final textStyle = TextStyle(
+            color: isCurrentWord ? Colors.red.shade800 : Colors.black87,
+            fontSize: adjustedFontSize,
+            fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.w500,
+            fontFamily: 'OpenDyslexic',
+            height: 1.0,
+            letterSpacing: 0,
+          );
+
+          final textSpan = TextSpan(text: word, style: textStyle);
+          final textPainter = TextPainter(
+            text: textSpan,
+            textDirection: TextDirection.ltr,
+          );
+          textPainter.layout();
+          if (isCurrentWord) {
+            final highlightPaint = Paint()
+              ..color = Colors.yellow.withOpacity(0.6)
+              ..style = PaintingStyle.fill;
+
+            final highlightRect = RRect.fromRectAndRadius(
+              Rect.fromLTWH(
+                currentX - 1,
+                top + 1,
+                textPainter.width + 2,
+                lineHeight - 2,
+              ),
+              const Radius.circular(2),
+            );
+
+            canvas.drawRRect(highlightRect, highlightPaint);
+          }
+          final textY = top + (lineHeight - textPainter.height) / 2;
+          textPainter.paint(canvas, Offset(currentX, textY));
+          currentX += textPainter.width + (adjustedFontSize * 0.15);
+        }
+
+        globalWordIndex += words.length;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(OverlayStyle oldDelegate) {
+    return oldDelegate.currentWordIndex != currentWordIndex ||
+           oldDelegate.imageDisplaySize != imageDisplaySize;
+  }
+}
