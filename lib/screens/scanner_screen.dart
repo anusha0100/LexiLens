@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:lexilens/screens/document_preview_screen.dart';
@@ -20,6 +20,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
   List<CameraDescription>? _cameras;
   bool _isCameraInitialized = false;
   final ImagePicker _picker = ImagePicker();
+  bool _textSelectionEnabled = false;
+  bool _openDyslexicOverlay = false; 
+  double _fontSize = 14.0; 
 
   @override
   void initState() {
@@ -86,6 +89,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
             builder: (_) => DocumentPreviewScreen(
               imagePath: image.path,
               scanMode: _selectedMode,
+              useOpenDyslexic: _openDyslexicOverlay,
+              fontSize: _fontSize,
             ),
           ),
         );
@@ -112,6 +117,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
             builder: (_) => DocumentPreviewScreen(
               imagePath: image.path,
               scanMode: _selectedMode,
+              useOpenDyslexic: _openDyslexicOverlay,
+              fontSize: _fontSize,
             ),
           ),
         );
@@ -135,6 +142,279 @@ class _ScannerScreenState extends State<ScannerScreen> {
     });
     await _cameraController!.setFlashMode(
       _isFlashOn ? FlashMode.torch : FlashMode.off,
+    );
+  }
+
+  void _toggleTextSelection() {
+    setState(() {
+      _textSelectionEnabled = !_textSelectionEnabled;
+      if (_textSelectionEnabled) {
+        _openDyslexicOverlay = true;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _textSelectionEnabled 
+              ? 'Text selection enabled with OpenDyslexic font' 
+              : 'Text selection disabled'
+        ),
+        backgroundColor: const Color(0xFFB789DA),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _showFontSizeDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                'Adjust Font Size',
+                style: TextStyle(
+                  fontFamily: 'OpenDyslexic',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Sample Text',
+                    style: TextStyle(
+                      fontSize: _fontSize,
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Size:',
+                        style: TextStyle(fontFamily: 'OpenDyslexic'),
+                      ),
+                      Text(
+                        _fontSize.toInt().toString(),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'OpenDyslexic',
+                        ),
+                      ),
+                    ],
+                  ),
+                  Slider(
+                    value: _fontSize,
+                    min: 10.0,
+                    max: 24.0,
+                    divisions: 14,
+                    activeColor: const Color(0xFFB789DA),
+                    label: _fontSize.toInt().toString(),
+                    onChanged: (value) {
+                      setState(() {
+                        _fontSize = value;
+                      });
+                      this.setState(() {
+                        _fontSize = value;
+                      });
+                    },
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '10',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[600],
+                          fontFamily: 'OpenDyslexic',
+                        ),
+                      ),
+                      Text(
+                        '24',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontFamily: 'OpenDyslexic',
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Font size set to ${_fontSize.toInt()}'),
+                        backgroundColor: const Color(0xFFB789DA),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFB789DA),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text(
+                    'Apply',
+                    style: TextStyle(fontFamily: 'OpenDyslexic'),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showMoreOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Scanner Options',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'OpenDyslexic',
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _buildOptionTile(
+                  icon: Icons.text_fields,
+                  title: 'Text Selection',
+                  subtitle: _textSelectionEnabled 
+                      ? 'Enabled (OpenDyslexic)' 
+                      : 'Disabled',
+                  trailing: Switch(
+                    value: _textSelectionEnabled,
+                    activeColor: const Color(0xFFB789DA),
+                    onChanged: (value) {
+                      setState(() {
+                        _textSelectionEnabled = value;
+                        _openDyslexicOverlay = value;
+                      });
+                      Navigator.pop(context);
+                      _toggleTextSelection();
+                    },
+                  ),
+                ),
+                _buildOptionTile(
+                  icon: Icons.format_size,
+                  title: 'Font Size',
+                  subtitle: 'Current: ${_fontSize.toInt()}',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showFontSizeDialog();
+                  },
+                ),
+                _buildOptionTile(
+                  icon: Icons.grid_on,
+                  title: 'Grid Overlay',
+                  subtitle: 'Show alignment grid',
+                  onTap: () {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Grid overlay feature coming soon!'),
+                        backgroundColor: Color(0xFFB789DA),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildOptionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    VoidCallback? onTap,
+    Widget? trailing,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8D5F0),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          color: const Color(0xFFB789DA),
+          size: 22,
+        ),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          fontFamily: 'OpenDyslexic',
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 13,
+          color: Colors.grey[600],
+          fontFamily: 'OpenDyslexic',
+        ),
+      ),
+      trailing: trailing ?? const Icon(Icons.chevron_right),
+      onTap: onTap,
     );
   }
 
@@ -226,6 +506,42 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       ),
                     ),
                   ),
+                  // Text selection indicator
+                  if (_textSelectionEnabled && _openDyslexicOverlay)
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB789DA).withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.font_download,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'OpenDyslexic',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -259,21 +575,25 @@ class _ScannerScreenState extends State<ScannerScreen> {
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
-                      IconButton(
-                        icon: Icon(
-                          _isFlashOn ? Icons.flash_on : Icons.flash_off,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                        onPressed: _toggleFlash,
-                      ),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.more_vert,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                        onPressed: () {},
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              _isFlashOn ? Icons.flash_on : Icons.flash_off,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            onPressed: _toggleFlash,
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.more_vert,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            onPressed: _showMoreOptions,
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -388,7 +708,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                         ),
                         _buildActionButton(
                           icon: Icons.settings,
-                          onTap: () {},
+                          onTap: _showMoreOptions,
                         ),
                       ],
                     ),

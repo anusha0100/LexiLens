@@ -8,11 +8,15 @@ import 'package:lexilens/services/ocr_service.dart';
 class DocumentPreviewScreen extends StatefulWidget {
   final String imagePath;
   final String scanMode;
+  final bool useOpenDyslexic;
+  final double fontSize;
 
   const DocumentPreviewScreen({
     super.key,
     required this.imagePath,
     required this.scanMode,
+    this.useOpenDyslexic = true,
+    this.fontSize = 14.0,
   });
 
   @override
@@ -55,21 +59,20 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
     setState(() {
       _isProcessing = true;
     });
-
     try {
       final textBlocks = await _ocrService.extractTextBlocks(widget.imagePath);
-      
       if (mounted) {
         setState(() {
           _isProcessing = false;
         });
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (_) => TextOverlayScreen(
               imagePath: widget.imagePath,
               textBlocks: textBlocks,
+              useOpenDyslexic: widget.useOpenDyslexic,
+              fontSize: widget.fontSize,
             ),
           ),
         );
@@ -88,7 +91,6 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,7 +132,6 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
             ..._cornerPoints.asMap().entries.map((entry) {
               final index = entry.key;
               final point = entry.value;
-              // Calculate the actual position relative to screen
               final screenSize = MediaQuery.of(context).size;
               final xOffset = (screenSize.width - _imageSize!.width) / 2;
               final yOffset = (screenSize.height - _imageSize!.height) / 2;
@@ -196,14 +197,38 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
                         ),
                         onPressed: () => Navigator.pop(context),
                       ),
-                      Text(
-                        widget.scanMode,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'OpenDyslexic',
-                        ),
+                      Column(
+                        children: [
+                          Text(
+                            widget.scanMode,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              fontFamily: 'OpenDyslexic',
+                            ),
+                          ),
+                          if (widget.useOpenDyslexic)
+                            Container(
+                              margin: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFB789DA),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'OpenDyslexic',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontFamily: 'OpenDyslexic',
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(width: 48),
                     ],

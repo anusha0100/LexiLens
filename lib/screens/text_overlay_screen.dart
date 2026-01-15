@@ -13,11 +13,14 @@ import 'package:lexilens/bloc/app_states.dart';
 class TextOverlayScreen extends StatefulWidget {
   final String imagePath;
   final List<TextBlock> textBlocks;
-
+  final bool useOpenDyslexic; 
+  final double fontSize; 
   const TextOverlayScreen({
     super.key,
     required this.imagePath,
     required this.textBlocks,
+    this.useOpenDyslexic = true,
+    this.fontSize = 14.0,
   });
 
   @override
@@ -30,10 +33,14 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   ui.Image? _decodedImage;
   Size? _imageDisplaySize;
   final GlobalKey _imageKey = GlobalKey();
+  late bool _useOpenDyslexic;
+  late double _fontSize;
 
   @override
   void initState() {
     super.initState();
+    _useOpenDyslexic = widget.useOpenDyslexic;
+    _fontSize = widget.fontSize;
     _loadImage();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _getImageDisplaySize();
@@ -104,6 +111,23 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     );
   }
 
+  void _toggleFontStyle() {
+    setState(() {
+      _useOpenDyslexic = !_useOpenDyslexic;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _useOpenDyslexic 
+              ? 'Using OpenDyslexic font' 
+              : 'Using default font'
+        ),
+        duration: const Duration(seconds: 1),
+        backgroundColor: const Color(0xFFB789DA),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AppBloc, AppState>(
@@ -112,21 +136,38 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
           backgroundColor: Colors.black,
           appBar: AppBar(
             backgroundColor: const Color(0xFFB789DA),
-            title: const Text(
-              'Recognized Text',
-              style: TextStyle(
+            title: Text(
+              _useOpenDyslexic 
+                  ? 'OpenDyslexic Overlay' 
+                  : 'Recognized Text',
+              style: const TextStyle(
                 fontFamily: 'OpenDyslexic',
                 color: Colors.white,
               ),
             ),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: const Icon(
+                Icons.arrow_back, 
+                color: Colors.white,
+              ),
               onPressed: () {
                 _stopReading(context);
                 Navigator.pop(context);
               },
             ),
             actions: [
+              IconButton(
+                icon: Icon(
+                  _useOpenDyslexic 
+                      ? Icons.font_download 
+                      : Icons.font_download_outlined,
+                  color: Colors.white,
+                ),
+                tooltip: _useOpenDyslexic 
+                    ? 'Switch to default font' 
+                    : 'Switch to OpenDyslexic',
+                onPressed: _toggleFontStyle,
+              ),
               IconButton(
                 icon: Icon(
                   _showOverlay ? Icons.visibility : Icons.visibility_off,
@@ -247,6 +288,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                     ? state.currentWordIndex
                     : -1,
                 allWords: _allWords,
+                useOpenDyslexic: _useOpenDyslexic,
+                fontSize: _fontSize,
               ),
             ),
           ),
@@ -284,43 +327,93 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       context: context,
       builder: (dialogContext) => BlocProvider.value(
         value: context.read<AppBloc>(),
-        child: BlocBuilder<AppBloc, AppState>(
-          builder: (context, state) {
+        child: StatefulBuilder(
+          builder: (context, setState) {
             return AlertDialog(
               title: const Text(
-                'Audio Settings',
+                'Display Settings',
                 style: TextStyle(fontFamily: 'OpenDyslexic'),
               ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Reading Speed: ${(state.readingSpeed * 2).toStringAsFixed(1)}x',
-                    style: const TextStyle(fontFamily: 'OpenDyslexic'),
-                  ),
-                  Slider(
-                    value: state.readingSpeed,
-                    min: 0.1,
-                    max: 1.0,
-                    divisions: 9,
+                  SwitchListTile(
+                    title: const Text(
+                      'OpenDyslexic Font',
+                      style: TextStyle(fontFamily: 'OpenDyslexic'),
+                    ),
+                    subtitle: const Text(
+                      'Use dyslexia-friendly font',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: _useOpenDyslexic,
                     activeColor: const Color(0xFFB789DA),
                     onChanged: (value) {
-                      context.read<AppBloc>().add(AdjustSpeed(value));
+                      setState(() {
+                        _useOpenDyslexic = value;
+                      });
+                      this.setState(() {
+                        _useOpenDyslexic = value;
+                      });
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const Divider(),
                   Text(
-                    'Volume: ${(state.volume * 100).toInt()}%',
+                    'Font Size: ${_fontSize.toInt()}',
                     style: const TextStyle(fontFamily: 'OpenDyslexic'),
                   ),
                   Slider(
-                    value: state.volume,
-                    min: 0.0,
-                    max: 1.0,
-                    divisions: 10,
+                    value: _fontSize,
+                    min: 10.0,
+                    max: 24.0,
+                    divisions: 14,
                     activeColor: const Color(0xFFB789DA),
+                    label: _fontSize.toInt().toString(),
                     onChanged: (value) {
-                      context.read<AppBloc>().add(AdjustVolume(value));
+                      setState(() {
+                        _fontSize = value;
+                      });
+                      this.setState(() {
+                        _fontSize = value;
+                      });
+                    },
+                  ),
+                  const Divider(),
+                  BlocBuilder<AppBloc, AppState>(
+                    builder: (context, state) {
+                      return Column(
+                        children: [
+                          Text(
+                            'Reading Speed: ${(state.readingSpeed * 2).toStringAsFixed(1)}x',
+                            style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                          ),
+                          Slider(
+                            value: state.readingSpeed,
+                            min: 0.1,
+                            max: 1.0,
+                            divisions: 9,
+                            activeColor: const Color(0xFFB789DA),
+                            onChanged: (value) {
+                              context.read<AppBloc>().add(AdjustSpeed(value));
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Volume: ${(state.volume * 100).toInt()}%',
+                            style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                          ),
+                          Slider(
+                            value: state.volume,
+                            min: 0.0,
+                            max: 1.0,
+                            divisions: 10,
+                            activeColor: const Color(0xFFB789DA),
+                            onChanged: (value) {
+                              context.read<AppBloc>().add(AdjustVolume(value));
+                            },
+                          ),
+                        ],
+                      );
                     },
                   ),
                 ],
@@ -351,6 +444,8 @@ class OverlayStyle extends CustomPainter {
   final Size imageDisplaySize;
   final int currentWordIndex;
   final List<String> allWords;
+  final bool useOpenDyslexic;
+  final double fontSize;
 
   OverlayStyle({
     required this.textBlocks,
@@ -358,6 +453,8 @@ class OverlayStyle extends CustomPainter {
     required this.imageDisplaySize,
     required this.currentWordIndex,
     required this.allWords,
+    required this.useOpenDyslexic,
+    required this.fontSize,
   });
 
   @override
@@ -365,6 +462,7 @@ class OverlayStyle extends CustomPainter {
     final scaleX = imageDisplaySize.width / imageActualSize.width;
     final scaleY = imageDisplaySize.height / imageActualSize.height;
     int globalWordIndex = 0;
+    
     for (final block in textBlocks) {
       for (final line in block.lines) {
         final boundingBox = line.boundingBox;
@@ -377,14 +475,18 @@ class OverlayStyle extends CustomPainter {
         final lineWidth = scaledRect.width;
         final lineText = line.text;
         final words = lineText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        
         if (words.isEmpty) continue;
+        
         final lineStartIndex = globalWordIndex;
         final lineEndIndex = lineStartIndex + words.length;
         final isLineActive = currentWordIndex >= lineStartIndex && 
                              currentWordIndex < lineEndIndex;
+        
         final backgroundPaint = Paint()
           ..color = const Color(0xFFEEEEEE).withOpacity(0.75)
           ..style = PaintingStyle.fill;
+        
         final bgRect = RRect.fromRectAndRadius(
           Rect.fromLTRB(
             left - 4,
@@ -396,35 +498,43 @@ class OverlayStyle extends CustomPainter {
         );
         
         canvas.drawRRect(bgRect, backgroundPaint);
-        final fontSize = (lineHeight * 0.5).clamp(8.0, 14.0);
+        
+        // Calculate font size based on line height and user setting
+        final calculatedFontSize = (lineHeight * 0.5).clamp(8.0, fontSize);
+        
         final testStyle = TextStyle(
-          fontSize: fontSize,
+          fontSize: calculatedFontSize,
           fontWeight: FontWeight.w500,
-          fontFamily: 'OpenDyslexic',
+          fontFamily: useOpenDyslexic ? 'OpenDyslexic' : null,
           height: 1.0,
         );
+        
         final testPainter = TextPainter(
           text: TextSpan(text: lineText, style: testStyle),
           textDirection: TextDirection.ltr,
         );
         testPainter.layout();
+        
         final availableWidth = lineWidth - 8; 
         final scaleFactor = testPainter.width > availableWidth 
             ? availableWidth / testPainter.width 
             : 1.0;
-        final adjustedFontSize = (fontSize * scaleFactor).clamp(7.0, 14.0);
+        
+        final adjustedFontSize = (calculatedFontSize * scaleFactor).clamp(7.0, fontSize);
+        
         double currentX = left + 4;
         for (int wordIdx = 0; wordIdx < words.length; wordIdx++) {
           final word = words[wordIdx];
           final isCurrentWord = isLineActive && 
                                 (globalWordIndex + wordIdx) == currentWordIndex;
+          
           final textStyle = TextStyle(
             color: isCurrentWord ? Colors.red.shade800 : Colors.black87,
             fontSize: adjustedFontSize,
             fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.w500,
-            fontFamily: 'OpenDyslexic',
+            fontFamily: useOpenDyslexic ? 'OpenDyslexic' : null,
             height: 1.0,
-            letterSpacing: 0,
+            letterSpacing: useOpenDyslexic ? 0.5 : 0,
           );
 
           final textSpan = TextSpan(text: word, style: textStyle);
@@ -433,6 +543,7 @@ class OverlayStyle extends CustomPainter {
             textDirection: TextDirection.ltr,
           );
           textPainter.layout();
+          
           if (isCurrentWord) {
             final highlightPaint = Paint()
               ..color = Colors.yellow.withOpacity(0.6)
@@ -450,6 +561,7 @@ class OverlayStyle extends CustomPainter {
 
             canvas.drawRRect(highlightRect, highlightPaint);
           }
+          
           final textY = top + (lineHeight - textPainter.height) / 2;
           textPainter.paint(canvas, Offset(currentX, textY));
           currentX += textPainter.width + (adjustedFontSize * 0.15);
@@ -463,6 +575,8 @@ class OverlayStyle extends CustomPainter {
   @override
   bool shouldRepaint(OverlayStyle oldDelegate) {
     return oldDelegate.currentWordIndex != currentWordIndex ||
-           oldDelegate.imageDisplaySize != imageDisplaySize;
+           oldDelegate.imageDisplaySize != imageDisplaySize ||
+           oldDelegate.useOpenDyslexic != useOpenDyslexic ||
+           oldDelegate.fontSize != fontSize;
   }
 }
