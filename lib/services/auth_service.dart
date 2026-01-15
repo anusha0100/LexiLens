@@ -1,4 +1,9 @@
+// lib/services/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lexilens/services/mongodb_service.dart';
+import 'package:lexilens/models/user_session.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:io';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -6,6 +11,7 @@ class AuthService {
   AuthService._internal();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final MongoDBService _mongoService = MongoDBService();
   String? _verificationId;
   String? _pendingEmail;
   String? _pendingPassword;
@@ -13,13 +19,47 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => currentUser != null;
 
-  // Sign up with email and password (Step 1)
+  // Get device info for session tracking
+  Future<String> _getDeviceInfo() async {
+    final deviceInfo = DeviceInfoPlugin();
+    try {
+      if (Platform.isAndroid) {
+        final androidInfo = await deviceInfo.androidInfo;
+        return '${androidInfo.manufacturer} ${androidInfo.model}';
+      } else if (Platform.isIOS) {
+        final iosInfo = await deviceInfo.iosInfo;
+        return '${iosInfo.name} ${iosInfo.model}';
+      }
+      return 'Unknown Device';
+    } catch (e) {
+      return 'Unknown Device';
+    }
+  }
+
+  // Create MongoDB session after successful auth
+  Future<void> _createSession(String userId, String token) async {
+    final deviceInfo = await _getDeviceInfo();
+    
+    final session = UserSession(
+      userId: userId,
+      token: token,
+      deviceInfo: deviceInfo,
+      ipAddress: 'N/A', 
+      createdAt: DateTime.now(),
+      expiresAt: DateTime.now().add(const Duration(days: 30)),
+      isActive: true,
+    );
+
+    await _mongoService.createSession(session);
+    _mongoService.setAuthToken(token);
+  }
+
+  // Sign up with email and password
   Future<Map<String, dynamic>> signUpWithEmail({
     required String email,
     required String password,
   }) async {
     try {
-      // Store credentials for later use after phone verification
       _pendingEmail = email;
       _pendingPassword = password;
 
@@ -35,12 +75,11 @@ class AuthService {
     }
   }
 
-  // Simulate phone verification (Step 2)
+  // Phone verification
   Future<Map<String, dynamic>> verifyPhoneNumber({
     required String phoneNumber,
   }) async {
     try {
-      // Generate a fake verification ID
       _verificationId = 'fake_verification_${DateTime.now().millisecondsSinceEpoch}';
 
       return {
@@ -56,13 +95,12 @@ class AuthService {
     }
   }
 
-  // Verify OTP and complete registration (Step 3)
+  // Verify OTP and complete registration
   Future<Map<String, dynamic>> verifyOTP({
     required String otp,
     required String verificationId,
   }) async {
     try {
-      // Check if OTP is correct
       if (otp != '1234') {
         return {
           'success': false,
@@ -70,21 +108,25 @@ class AuthService {
         };
       }
 
-      // Check if we have pending credentials
       if (_pendingEmail == null || _pendingPassword == null) {
         return {
           'success': false,
           'message': 'No pending registration found',
         };
       }
-
-      // Create user account with email and password
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: _pendingEmail!,
         password: _pendingPassword!,
       );
 
-      // Clear pending credentials
+      // Get Firebase token
+      final token = await userCredential.user?.getIdToken();
+      
+      if (token != null && userCredential.user != null) {
+        // Create MongoDB session
+        await _createSession(userCredential.user!.uid, token);
+      }
+
       _pendingEmail = null;
       _pendingPassword = null;
       _verificationId = null;
@@ -133,7 +175,12 @@ class AuthService {
         email: email,
         password: password,
       );
-
+      // Get Firebase token
+      final token = await userCredential.user?.getIdToken();
+      if (token != null && userCredential.user != null) {
+        // Create or update MongoDB session
+        await _createSession(userCredential.user!.uid, token);
+      }
       return {
         'success': true,
         'user': userCredential.user,
@@ -141,7 +188,6 @@ class AuthService {
       };
     } on FirebaseAuthException catch (e) {
       String message = 'Login failed';
-      
       switch (e.code) {
         case 'user-not-found':
           message = 'No user found with this email';
@@ -173,15 +219,37 @@ class AuthService {
 
   // Logout
   Future<void> logout() async {
-    await _auth.signOut();
-    _pendingEmail = null;
-    _pendingPassword = null;
-    _verificationId = null;
+    try {
+      // Get current session from MongoDB
+      if (currentUser != null) {
+        final session = await _mongoService.getActiveSession(currentUser!.uid);
+        if (session != null && session.id != null) {
+          // Invalidate session in MongoDB
+          await _mongoService.invalidateSession(session.id!);
+        }
+      }
+
+      // Sign out from Firebase
+      await _auth.signOut();
+      
+      // Clear local data
+      _pendingEmail = null;
+      _pendingPassword = null;
+      _verificationId = null;
+      _mongoService.setAuthToken('');
+    } catch (e) {
+      print('Error during logout: $e');
+    }
   }
 
   // Get user email
   String? getUserEmail() {
     return currentUser?.email;
+  }
+
+  // Get user ID
+  String? getUserId() {
+    return currentUser?.uid;
   }
 
   // Reset password
@@ -199,6 +267,20 @@ class AuthService {
         'success': false,
         'message': e.message ?? 'Failed to send reset email',
       };
+    }
+  }
+
+  // Refresh session
+  Future<void> refreshSession() async {
+    try {
+      if (currentUser != null) {
+        final token = await currentUser!.getIdToken(true);
+        if (token != null) {
+          _mongoService.setAuthToken(token);
+        }
+      }
+    } catch (e) {
+      print('Error refreshing session: $e');
     }
   }
 }

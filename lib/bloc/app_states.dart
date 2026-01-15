@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:lexilens/models/document_tag.dart';
 
 enum AppTab { home, scan, docs, filter, settings }
 enum ReadingState { idle, playing, paused }
@@ -19,6 +20,7 @@ class AppState extends Equatable {
   final int selectedTextColor;
   final int selectedBackgroundColor;
   final String userName;
+  final List<DocumentTag> availableTags;
   
   const AppState({
     this.currentTab = AppTab.home,
@@ -36,6 +38,7 @@ class AppState extends Equatable {
     this.selectedTextColor = 0,
     this.selectedBackgroundColor = 0,
     this.userName = 'Archita',
+    this.availableTags = const [],
   });
 
   @override
@@ -55,6 +58,7 @@ class AppState extends Equatable {
     selectedTextColor,
     selectedBackgroundColor,
     userName,
+    availableTags,
   ];
 
   AppState copyWith({
@@ -73,6 +77,7 @@ class AppState extends Equatable {
     int? selectedTextColor,
     int? selectedBackgroundColor,
     String? userName,
+    List<DocumentTag>? availableTags,
   }) {
     return AppState(
       currentTab: currentTab ?? this.currentTab,
@@ -90,6 +95,7 @@ class AppState extends Equatable {
       selectedTextColor: selectedTextColor ?? this.selectedTextColor,
       selectedBackgroundColor: selectedBackgroundColor ?? this.selectedBackgroundColor,
       userName: userName ?? this.userName,
+      availableTags: availableTags ?? this.availableTags,
     );
   }
 }

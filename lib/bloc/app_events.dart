@@ -32,6 +32,48 @@ class DeleteDocument extends AppEvent {
   List<Object?> get props => [documentId];
 }
 
+class SaveDocument extends AppEvent {
+  final Document? document;
+  final List<String>? tags;
+  
+  SaveDocument({this.document, this.tags});
+  
+  @override
+  List<Object?> get props => [document, tags];
+}
+
+class ToggleFavoriteDocument extends AppEvent {
+  final String documentId;
+  final bool isFavorite;
+  
+  ToggleFavoriteDocument(this.documentId, this.isFavorite);
+  
+  @override
+  List<Object?> get props => [documentId, isFavorite];
+}
+
+// Tag Events
+class LoadDocumentTags extends AppEvent {}
+
+class CreateDocumentTag extends AppEvent {
+  final String tagName;
+  final String color;
+  
+  CreateDocumentTag(this.tagName, this.color);
+  
+  @override
+  List<Object?> get props => [tagName, color];
+}
+
+class DeleteDocumentTag extends AppEvent {
+  final String tagId;
+  
+  DeleteDocumentTag(this.tagId);
+  
+  @override
+  List<Object?> get props => [tagId];
+}
+
 // Reading/TTS Events
 class StartTextToSpeech extends AppEvent {
   final String? text;
@@ -112,6 +154,19 @@ class ChangeBackgroundColor extends AppEvent {
 }
 
 class SaveFilterSettings extends AppEvent {}
+
+// Settings Events
+class LoadUserSettings extends AppEvent {}
+
+class UpdateUserSetting extends AppEvent {
+  final String key;
+  final dynamic value;
+  
+  UpdateUserSetting(this.key, this.value);
+  
+  @override
+  List<Object?> get props => [key, value];
+}
 
 // Upload Events
 class UploadPDF extends AppEvent {}
