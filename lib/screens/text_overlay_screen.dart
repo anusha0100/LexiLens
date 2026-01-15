@@ -74,7 +74,11 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
-    context.read<AppBloc>().add(StopTextToSpeech());
+    try {
+      context.read<AppBloc>().add(StopTextToSpeech());
+    } catch (e) {
+      // Context might not be available during dispose
+    }
     super.dispose();
   }
 

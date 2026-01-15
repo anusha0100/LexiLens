@@ -11,7 +11,11 @@ class MongoDBService {
   static final MongoDBService _instance = MongoDBService._internal();
   factory MongoDBService() => _instance;
   MongoDBService._internal();
-  static const String baseUrl = 'BACKEND_API_URL';
+  
+  // Update this URL based on your deployment environment
+  // Local development: http://localhost:3000/api
+  // Production: https://your-backend-server.com/api
+  static const String baseUrl = 'http://localhost:3000/api';
   String? _authToken;
 
   void setAuthToken(String token) {
