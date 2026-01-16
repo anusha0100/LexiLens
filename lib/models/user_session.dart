@@ -21,23 +21,27 @@ class UserSession {
 
   Map<String, dynamic> toJson() => {
     if (id != null) '_id': id,
-    'user_id': userId,
+    'userId': userId,
     'token': token,
-    'device_info': deviceInfo,
-    'ip_address': ipAddress,
-    'created_at': createdAt.toIso8601String(),
-    'expires_at': expiresAt.toIso8601String(),
-    'is_active': isActive,
+    'deviceInfo': deviceInfo,
+    'ipAddress': ipAddress,
+    'createdAt': createdAt.toIso8601String(),
+    'expiresAt': expiresAt.toIso8601String(),
+    'isActive': isActive,
   };
 
   factory UserSession.fromJson(Map<String, dynamic> json) => UserSession(
     id: json['_id']?.toString(),
-    userId: json['user_id'],
-    token: json['token'],
-    deviceInfo: json['device_info'],
-    ipAddress: json['ip_address'],
-    createdAt: DateTime.parse(json['created_at']),
-    expiresAt: DateTime.parse(json['expires_at']),
-    isActive: json['is_active'] ?? true,
+    userId: json['userId'] ?? '',
+    token: json['token'] ?? '',
+    deviceInfo: json['deviceInfo'] ?? 'Unknown',
+    ipAddress: json['ipAddress'] ?? 'N/A',
+    createdAt: json['createdAt'] != null 
+        ? DateTime.parse(json['createdAt']) 
+        : DateTime.now(),
+    expiresAt: json['expiresAt'] != null 
+        ? DateTime.parse(json['expiresAt']) 
+        : DateTime.now().add(const Duration(days: 30)),
+    isActive: json['isActive'] ?? true,
   );
 }

@@ -1,3 +1,4 @@
+// lib/screens/settings_screen.dart (UPDATED)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -6,7 +7,9 @@ import 'package:lexilens/screens/help_screen.dart';
 import 'package:lexilens/screens/preferences_screen.dart';
 import 'package:lexilens/screens/privacy_policy_screen.dart';
 import 'package:lexilens/screens/terms_of_service_screen.dart';
+import 'package:lexilens/screens/profile_screen.dart';
 import 'package:lexilens/screens/auth_landing_screen.dart';
+import 'package:lexilens/screens/backend_test_screen.dart';
 import 'package:lexilens/services/auth_service.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -20,8 +23,7 @@ class SettingsScreen extends StatelessWidget {
       backgroundColor: Colors.white,
       body: BlocBuilder<AppBloc, AppState>(
         builder: (context, state) {
-          // Get user email from Firebase Auth
-          final userEmail = authService.getUserEmail() ?? 'archita@example.com';
+          final userEmail = authService.getUserEmail() ?? 'user@example.com';
           
           return Column(
             children: [
@@ -57,31 +59,50 @@ class SettingsScreen extends StatelessWidget {
                                       width: 3,
                                     ),
                                   ),
-                                  child: const CircleAvatar(
+                                  child: CircleAvatar(
                                     radius: 37,
                                     backgroundColor: Colors.white,
-                                    backgroundImage:
-                                        AssetImage('assets/profile.png'),
+                                    child: Text(
+                                      state.userName.isNotEmpty 
+                                          ? state.userName[0].toUpperCase()
+                                          : 'U',
+                                      style: const TextStyle(
+                                        color: Color(0xFFB789DA),
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'OpenDyslexic',
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 Positioned(
                                   bottom: 0,
                                   right: 0,
-                                  child: Container(
-                                    width: 26,
-                                    height: 26,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: const Color(0xFFB789DA),
-                                        width: 2,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const ProfileScreen(),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      width: 26,
+                                      height: 26,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: const Color(0xFFB789DA),
+                                          width: 2,
+                                        ),
                                       ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.edit,
-                                      size: 14,
-                                      color: Color(0xFFB789DA),
+                                      child: const Icon(
+                                        Icons.edit,
+                                        size: 14,
+                                        color: Color(0xFFB789DA),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -111,14 +132,6 @@ class SettingsScreen extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  const Text(
-                                    '+123 567 89000',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.white70,
-                                      fontFamily: 'OpenDyslexic',
-                                    ),
-                                  ),
                                   Text(
                                     userEmail,
                                     style: const TextStyle(
@@ -139,39 +152,42 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               // Edit Profile Button
-              SizedBox(
-                width: 450,
-                height: 48,
-                child: OutlinedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Edit Profile feature coming soon!'),
-                        backgroundColor: Color(0xFFB789DA),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFB789DA),
+                      side: const BorderSide(
+                        color: Color(0xFFB789DA),
+                        width: 2,
                       ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFB789DA),
-                    side: const BorderSide(
-                      color: Color(0xFFB789DA),
-                      width: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Edit Profile',
-                    style: TextStyle(
-                      color: Color(0xFFB789DA),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenDyslexic',
+                    child: const Text(
+                      'Edit Profile',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenDyslexic',
+                      ),
                     ),
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
               // Menu Items Section
               Expanded(
                 child: ListView(
@@ -202,6 +218,19 @@ class SettingsScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const HelpScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
+                      context: context,
+                      icon: Icons.bug_report,
+                      title: 'Backend Testing',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const BackendTestScreen(),
                           ),
                         );
                       },
@@ -427,10 +456,8 @@ class SettingsScreen extends StatelessWidget {
             ),
             TextButton(
               onPressed: () async {
-                // Close dialog
                 Navigator.pop(dialogContext);
                 
-                // Show loading indicator
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -441,14 +468,11 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 );
 
-                // Perform logout
                 await authService.logout();
 
-                // Close loading indicator
                 if (context.mounted) {
                   Navigator.pop(context);
                   
-                  // Show success message
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Logged out successfully'),
@@ -456,7 +480,6 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   );
 
-                  // Navigate to auth landing screen
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(

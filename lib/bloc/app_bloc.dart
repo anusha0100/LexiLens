@@ -1,3 +1,4 @@
+// lib/bloc/app_bloc.dart
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
@@ -14,6 +15,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
 
   AppBloc() : super(const AppState()) {
     _initializeTTS();
+    _loadUsername();
 
     on<NavigateToHome>((event, emit) {
       emit(state.copyWith(currentTab: AppTab.home));
@@ -39,9 +41,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       final userId = _authService.getUserId();
       if (userId != null) {
         try {
-          // Load documents from MongoDB
           final documents = await _mongoService.getUserDocuments(userId);
-          // Convert DocumentModel to Document
           final recentDocs = documents.map((doc) => Document(
             id: doc.id ?? '',
             name: doc.name,
@@ -53,12 +53,19 @@ class AppBloc extends Bloc<AppEvent, AppState> {
           emit(state.copyWith(recentDocuments: recentDocs));
         } catch (e) {
           print('Error loading documents: $e');
-          // Fallback to mock data if MongoDB fails
           _loadMockDocuments(emit);
         }
       } else {
-        // Load mock documents if not logged in
         _loadMockDocuments(emit);
+      }
+    });
+
+    on<LoadUserProfile>((event, emit) async {
+      try {
+        final username = await _authService.getUsername();
+        emit(state.copyWith(userName: username));
+      } catch (e) {
+        print('Error loading username: $e');
       }
     });
 
@@ -68,13 +75,11 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       final userId = _authService.getUserId();
       if (userId != null) {
         try {
-          // Try to get document from MongoDB
           final mongoDoc = await _mongoService.getDocument(event.documentPath);
           if (mongoDoc != null) {
-            // Update last read date
             await _mongoService.updateDocument(
               event.documentPath,
-              {'last_read_date': DateTime.now().toIso8601String()},
+              {'lastReadDate': DateTime.now().toIso8601String()},
             );
             
             final doc = Document(
@@ -96,10 +101,18 @@ class AppBloc extends Bloc<AppEvent, AppState> {
           print('Error opening document from MongoDB: $e');
         }
       }
-      // Fallback to local documents
+      
       final doc = state.recentDocuments.firstWhere(
         (d) => d.id == event.documentPath,
-        orElse: () => state.recentDocuments.first,
+        orElse: () => state.recentDocuments.isNotEmpty 
+            ? state.recentDocuments.first 
+            : Document(
+                id: '0',
+                name: 'No document',
+                previewPath: '',
+                uploadedDate: DateTime.now(),
+                content: 'No content available',
+              ),
       );
       emit(state.copyWith(
         currentDocument: doc,
@@ -112,18 +125,20 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       if (state.currentDocument?.id == event.documentId) {
         await _ttsService.stop();
       }
+      
       final userId = _authService.getUserId();
       if (userId != null) {
         try {
-          // Delete from MongoDB
           await _mongoService.deleteDocument(event.documentId);
         } catch (e) {
           print('Error deleting document from MongoDB: $e');
         }
       }
+      
       final updatedDocs = state.recentDocuments
           .where((doc) => doc.id != event.documentId)
           .toList();
+      
       emit(state.copyWith(
         recentDocuments: updatedDocs,
         currentDocument: state.currentDocument?.id == event.documentId 
@@ -143,13 +158,14 @@ class AppBloc extends Bloc<AppEvent, AppState> {
             userId: userId,
             name: event.document!.name,
             content: event.document!.content,
+            filePath: event.document!.previewPath,
             uploadedDate: event.document!.uploadedDate,
             tags: event.tags ?? [],
           );
+          
           final savedDoc = await _mongoService.createDocument(mongoDoc);
           
           if (savedDoc != null) {
-            // Reload documents
             add(LoadDocuments());
           }
         } catch (e) {
@@ -164,7 +180,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
         try {
           await _mongoService.updateDocument(
             event.documentId,
-            {'is_favorite': event.isFavorite},
+            {'isFavorite': event.isFavorite},
           );
         } catch (e) {
           print('Error toggling favorite: $e');
@@ -259,22 +275,18 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     on<AdjustSpeed>((event, emit) async {
       emit(state.copyWith(readingSpeed: event.speed));
       await _ttsService.setSpeed(event.speed);
-      
-      // Save to MongoDB settings
       await _saveUserSetting('reading_speed', event.speed);
     });
 
     on<AdjustVolume>((event, emit) async {
       emit(state.copyWith(volume: event.volume));
       await _ttsService.setVolume(event.volume);
-      // Save to MongoDB settings
       await _saveUserSetting('volume', event.volume);
     });
 
     on<AdjustPitch>((event, emit) async {
       emit(state.copyWith(pitch: event.pitch));
       await _ttsService.setPitch(event.pitch);
-      // Save to MongoDB settings
       await _saveUserSetting('pitch', event.pitch);
     });
 
@@ -293,7 +305,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     });
 
     on<SaveFilterSettings>((event, emit) async {
-      
+      // Filter settings are auto-saved on change
     });
 
     on<LoadUserSettings>((event, emit) async {
@@ -301,7 +313,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     });
 
     on<UploadPDF>((event, emit) {
-      
+      // Handled in UploadPDFScreen
     });
   }
 
@@ -325,11 +337,20 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     emit(state.copyWith(recentDocuments: mockDocuments));
   }
 
+  Future<void> _loadUsername() async {
+    try {
+      final username = await _authService.getUsername();
+      add(LoadUserProfile());
+    } catch (e) {
+      print('Error loading username: $e');
+    }
+  }
+
   Future<void> _saveUserSetting(String key, dynamic value) async {
     final userId = _authService.getUserId();
     if (userId != null) {
       try {
-        await _mongoService.updateSetting('${userId}_$key', value);
+        await _mongoService.updateSetting(userId, key, value);
       } catch (e) {
         print('Error saving setting: $e');
       }
@@ -340,14 +361,15 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     final userId = _authService.getUserId();
     if (userId != null) {
       try {
-        final settings = await _mongoService.getAllSettings();
+        final settings = await _mongoService.getAllSettings(userId);
         
         emit(state.copyWith(
-          readingSpeed: settings['${userId}_reading_speed'] ?? 0.5,
-          volume: settings['${userId}_volume'] ?? 1.0,
-          pitch: settings['${userId}_pitch'] ?? 1.0,
-          selectedTextColor: settings['${userId}_text_color'] ?? 0,
-          selectedBackgroundColor: settings['${userId}_background_color'] ?? 0,
+          readingSpeed: settings['reading_speed']?.toDouble() ?? 0.5,
+          volume: settings['volume']?.toDouble() ?? 1.0,
+          pitch: settings['pitch']?.toDouble() ?? 1.0,
+          selectedTextColor: settings['text_color']?.toInt() ?? 0,
+          selectedBackgroundColor: settings['background_color']?.toInt() ?? 0,
+          userName: settings['user_name']?.toString() ?? await _authService.getUsername(),
         ));
       } catch (e) {
         print('Error loading settings: $e');

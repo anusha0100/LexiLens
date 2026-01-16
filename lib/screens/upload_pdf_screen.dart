@@ -1,8 +1,14 @@
-// ignore_for_file: deprecated_member_use
-
+// lib/screens/upload_pdf_screen.dart
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:lexilens/screens/reading_screen.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:lexilens/bloc/app_bloc.dart';
+import 'package:lexilens/bloc/app_events.dart';
+import 'package:lexilens/bloc/app_states.dart';
+import 'package:lexilens/services/auth_service.dart';
+import 'package:lexilens/services/mongodb_service.dart';
+import 'package:lexilens/models/document_model.dart';
+import 'dart:io';
 
 class UploadPDFScreen extends StatefulWidget {
   const UploadPDFScreen({super.key});
@@ -14,6 +20,8 @@ class UploadPDFScreen extends StatefulWidget {
 class _UploadPDFScreenState extends State<UploadPDFScreen> {
   List<PlatformFile> _selectedFiles = [];
   bool _isUploading = false;
+  final _authService = AuthService();
+  final _mongoService = MongoDBService();
 
   Future<void> _pickFiles() async {
     try {
@@ -29,12 +37,26 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error picking files: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking files: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<String> _readFileContent(PlatformFile file) async {
+    try {
+      if (file.path == null) return '';
+      
+      final fileContent = await File(file.path!).readAsString();
+      return fileContent;
+    } catch (e) {
+      print('Error reading file: $e');
+      return 'Content not available';
     }
   }
 
@@ -49,28 +71,97 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
       return;
     }
 
+    final userId = _authService.getUserId();
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to upload documents'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isUploading = true;
     });
 
-    // TODO: Implement actual upload to Firebase/backend
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      int successCount = 0;
+      int failCount = 0;
 
-    if (mounted) {
-      setState(() {
-        _isUploading = false;
-      });
+      for (final file in _selectedFiles) {
+        try {
+          final content = await _readFileContent(file);
+          
+          final document = DocumentModel(
+            userId: userId,
+            name: file.name,
+            content: content,
+            filePath: file.path,
+            uploadedDate: DateTime.now(),
+            tags: [],
+            isFavorite: false,
+          );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Files uploaded successfully!'),
-          backgroundColor: Color(0xFFB789DA),
-        ),
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const ReadingScreen()),
-      );
+          final savedDoc = await _mongoService.createDocument(document);
+          
+          if (savedDoc != null) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (e) {
+          print('Error uploading ${file.name}: $e');
+          failCount++;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+
+        String message;
+        Color bgColor;
+        
+        if (successCount > 0 && failCount == 0) {
+          message = '$successCount file(s) uploaded successfully!';
+          bgColor = const Color(0xFFB789DA);
+        } else if (successCount > 0 && failCount > 0) {
+          message = '$successCount succeeded, $failCount failed';
+          bgColor = Colors.orange;
+        } else {
+          message = 'Failed to upload files';
+          bgColor = Colors.red;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: bgColor,
+          ),
+        );
+
+        if (successCount > 0) {
+          // Reload documents
+          context.read<AppBloc>().add(LoadDocuments());
+          Navigator.pop(context);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -94,10 +185,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
-            Icons.close, 
-            color: Colors.black,
-          ),
+          icon: const Icon(Icons.close, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -117,7 +205,6 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
                 ? _buildEmptyState()
                 : _buildFilesList(),
           ),
-          // Bottom buttons
           Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -126,7 +213,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
                   width: double.infinity,
                   height: 56,
                   child: OutlinedButton.icon(
-                    onPressed: _pickFiles,
+                    onPressed: _isUploading ? null : _pickFiles,
                     icon: const Icon(Icons.add),
                     label: Text(
                       _selectedFiles.isEmpty ? 'Select Files' : 'Add More Files',
@@ -326,11 +413,8 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
               ),
             ),
             trailing: IconButton(
-              icon: const Icon(
-                Icons.close, 
-                color: Colors.red,
-              ),
-              onPressed: () => _removeFile(index),
+              icon: const Icon(Icons.close, color: Colors.red),
+              onPressed: _isUploading ? null : () => _removeFile(index),
             ),
           ),
         );

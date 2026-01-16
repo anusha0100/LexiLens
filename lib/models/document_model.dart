@@ -23,27 +23,30 @@ class DocumentModel {
 
   Map<String, dynamic> toJson() => {
     if (id != null) '_id': id,
-    'user_id': userId,
-    'name': name,
-    'content': content,
-    if (filePath != null) 'file_path': filePath,
-    'uploaded_date': uploadedDate.toIso8601String(),
-    if (lastReadDate != null) 'last_read_date': lastReadDate!.toIso8601String(),
+    'userId': userId,
+    'fileName': name,
+    'documentText': content,
+    if (filePath != null) 'filePath': filePath,
+    'uploadedDate': uploadedDate.toIso8601String(),
+    if (lastReadDate != null) 'lastReadDate': lastReadDate!.toIso8601String(),
     'tags': tags,
-    'is_favorite': isFavorite,
+    'isFavorite': isFavorite,
   };
 
   factory DocumentModel.fromJson(Map<String, dynamic> json) => DocumentModel(
     id: json['_id']?.toString(),
-    userId: json['user_id'],
-    name: json['name'],
-    content: json['content'],
-    filePath: json['file_path'],
-    uploadedDate: DateTime.parse(json['uploaded_date']),
-    lastReadDate: json['last_read_date'] != null 
-        ? DateTime.parse(json['last_read_date']) 
+    userId: json['userId'] ?? '',
+    name: json['fileName'] ?? 'Untitled',
+    content: json['documentText'] ?? '',
+    filePath: json['filePath'],
+    uploadedDate: json['uploadedDate'] != null 
+        ? DateTime.parse(json['uploadedDate']) 
+        : DateTime.now(),
+    lastReadDate: json['lastReadDate'] != null 
+        ? DateTime.parse(json['lastReadDate']) 
         : null,
     tags: List<String>.from(json['tags'] ?? []),
-    isFavorite: json['is_favorite'] ?? false,
+    isFavorite: json['isFavorite'] ?? false,
   );
 }
+

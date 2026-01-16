@@ -1,5 +1,4 @@
-// ignore_for_file: deprecated_member_use
-
+// lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -12,14 +11,25 @@ import 'package:lexilens/screens/upload_pdf_screen.dart';
 import 'package:lexilens/screens/documents_screen.dart';
 import 'package:lexilens/screens/settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Load documents when screen opens
-    context.read<AppBloc>().add(LoadDocuments());
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Load user profile and documents
+    context.read<AppBloc>().add(LoadUserProfile());
+    context.read<AppBloc>().add(LoadDocuments());
+    context.read<AppBloc>().add(LoadUserSettings());
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -36,10 +46,7 @@ class HomeScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.menu,
-              color: Colors.black,
-            ),
+            icon: const Icon(Icons.menu, color: Colors.black),
             onPressed: () {
               Navigator.push(
                 context,
@@ -61,38 +68,54 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Welcome Section
+                // Welcome Section with Username
                 Row(
                   children: [
-                    const CircleAvatar(
-                      radius: 25,
-                      backgroundColor: Color(0xFFE8D5F0),
-                      child: Icon(
-                        Icons.person,
-                        color: Color(0xFFB789DA),
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFFE8D5F0),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Welcome, ${state.userName}',
+                      child: Center(
+                        child: Text(
+                          state.userName.isNotEmpty 
+                              ? state.userName[0].toUpperCase()
+                              : 'U',
                           style: const TextStyle(
-                            fontSize: 18,
+                            color: Color(0xFFB789DA),
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             fontFamily: 'OpenDyslexic',
                           ),
                         ),
-                        const Text(
-                          'Ready To Make Your Day Easy?',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                            fontFamily: 'OpenDyslexic',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome, ${state.userName}',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              fontFamily: 'OpenDyslexic',
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
+                          const Text(
+                            'Ready To Make Your Day Easy?',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                              fontFamily: 'OpenDyslexic',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -116,7 +139,6 @@ class HomeScreen extends StatelessWidget {
                         icon: Icons.record_voice_over,
                         color: const Color(0xFFB789DA),
                         onTap: () {
-                          // Open the first document or show message if no documents
                           if (state.recentDocuments.isNotEmpty) {
                             final firstDoc = state.recentDocuments.first;
                             context.read<AppBloc>().add(OpenDocument(firstDoc.id));
@@ -249,32 +271,38 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: state.recentDocuments.length,
-                  itemBuilder: (context, index) {
-                    final doc = state.recentDocuments[index];
-                    return _DocumentCard(
-                      document: doc,
-                      onTap: () {
-                        context.read<AppBloc>().add(OpenDocument(doc.id));
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => BlocProvider.value(
-                              value: context.read<AppBloc>(),
-                              child: const ReadingScreen(),
-                            ),
-                          ),
-                        );
-                      },
-                      onDelete: () {
-                        context.read<AppBloc>().add(DeleteDocument(doc.id));
-                      },
-                    );
-                  },
-                ),
+                
+                // Documents List or Empty State
+                state.recentDocuments.isEmpty
+                    ? _buildEmptyState(context)
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: state.recentDocuments.length > 3 
+                            ? 3 
+                            : state.recentDocuments.length,
+                        itemBuilder: (context, index) {
+                          final doc = state.recentDocuments[index];
+                          return _DocumentCard(
+                            document: doc,
+                            onTap: () {
+                              context.read<AppBloc>().add(OpenDocument(doc.id));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => BlocProvider.value(
+                                    value: context.read<AppBloc>(),
+                                    child: const ReadingScreen(),
+                                  ),
+                                ),
+                              );
+                            },
+                            onDelete: () {
+                              context.read<AppBloc>().add(DeleteDocument(doc.id));
+                            },
+                          );
+                        },
+                      ),
               ],
             ),
           );
@@ -339,6 +367,40 @@ class HomeScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          Icon(
+            Icons.description_outlined,
+            size: 64,
+            color: Colors.grey[300],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No documents yet',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey[600],
+              fontFamily: 'OpenDyslexic',
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Upload or scan a document to get started',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[500],
+              fontFamily: 'OpenDyslexic',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ToolCard extends StatelessWidget {
@@ -364,18 +426,12 @@ class _ToolCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withOpacity(0.3),
-          ),
+          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 40,
-              color: Colors.white,
-            ),
+            Icon(icon, size: 40, color: Colors.white),
             const SizedBox(height: 8),
             Text(
               title,

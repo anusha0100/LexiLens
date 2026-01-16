@@ -1,31 +1,33 @@
 class AppSetting {
   final String? id;
+  final String userId;
   final String settingKey;
-  final dynamic settingValue;
-  final String description;
+  final dynamic value;
   final DateTime updatedAt;
 
   AppSetting({
     this.id,
+    required this.userId,
     required this.settingKey,
-    required this.settingValue,
-    required this.description,
+    required this.value,
     required this.updatedAt,
   });
 
   Map<String, dynamic> toJson() => {
     if (id != null) '_id': id,
-    'setting_key': settingKey,
-    'setting_value': settingValue,
-    'description': description,
-    'updated_at': updatedAt.toIso8601String(),
+    'userId': userId,
+    'settingKey': settingKey,
+    'value': value,
+    'updatedAt': updatedAt.toIso8601String(),
   };
 
   factory AppSetting.fromJson(Map<String, dynamic> json) => AppSetting(
     id: json['_id']?.toString(),
-    settingKey: json['setting_key'],
-    settingValue: json['setting_value'],
-    description: json['description'],
-    updatedAt: DateTime.parse(json['updated_at']),
+    userId: json['userId'] ?? '',
+    settingKey: json['settingKey'] ?? '',
+    value: json['value'],
+    updatedAt: json['updatedAt'] != null 
+        ? DateTime.parse(json['updatedAt']) 
+        : DateTime.now(),
   );
 }

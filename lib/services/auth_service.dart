@@ -19,6 +19,40 @@ class AuthService {
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => currentUser != null;
 
+  // Extract username from email
+  String extractUsername(String email) {
+    try {
+      // Get the part before @
+      final parts = email.split('@');
+      if (parts.isNotEmpty) {
+        String username = parts[0];
+        
+        // Remove dots and underscores, capitalize first letter
+        username = username.replaceAll('.', ' ').replaceAll('_', ' ');
+        
+        // Capitalize each word
+        final words = username.split(' ');
+        final capitalizedWords = words.map((word) {
+          if (word.isEmpty) return word;
+          return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        }).toList();
+        
+        return capitalizedWords.join(' ');
+      }
+      return 'User';
+    } catch (e) {
+      return 'User';
+    }
+  }
+
+  // Get display name from current user
+  String getUserDisplayName() {
+    if (currentUser?.email != null) {
+      return extractUsername(currentUser!.email!);
+    }
+    return 'User';
+  }
+
   // Get device info for session tracking
   Future<String> _getDeviceInfo() async {
     final deviceInfo = DeviceInfoPlugin();
@@ -52,6 +86,18 @@ class AuthService {
 
     await _mongoService.createSession(session);
     _mongoService.setAuthToken(token);
+  }
+
+  // Save user profile to MongoDB
+  Future<void> _saveUserProfile(String userId, String email) async {
+    try {
+      final username = extractUsername(email);
+      await _mongoService.updateSetting(userId, 'user_name', username);
+      await _mongoService.updateSetting(userId, 'user_email', email);
+      await _mongoService.updateSetting(userId, 'created_at', DateTime.now().toIso8601String());
+    } catch (e) {
+      print('Error saving user profile: $e');
+    }
   }
 
   // Sign up with email and password
@@ -114,6 +160,7 @@ class AuthService {
           'message': 'No pending registration found',
         };
       }
+      
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: _pendingEmail!,
         password: _pendingPassword!,
@@ -125,6 +172,9 @@ class AuthService {
       if (token != null && userCredential.user != null) {
         // Create MongoDB session
         await _createSession(userCredential.user!.uid, token);
+        
+        // Save user profile
+        await _saveUserProfile(userCredential.user!.uid, _pendingEmail!);
       }
 
       _pendingEmail = null;
@@ -175,12 +225,18 @@ class AuthService {
         email: email,
         password: password,
       );
+      
       // Get Firebase token
       final token = await userCredential.user?.getIdToken();
+      
       if (token != null && userCredential.user != null) {
         // Create or update MongoDB session
         await _createSession(userCredential.user!.uid, token);
+        
+        // Update user profile if not exists
+        await _saveUserProfile(userCredential.user!.uid, email);
       }
+      
       return {
         'success': true,
         'user': userCredential.user,
@@ -188,6 +244,7 @@ class AuthService {
       };
     } on FirebaseAuthException catch (e) {
       String message = 'Login failed';
+      
       switch (e.code) {
         case 'user-not-found':
           message = 'No user found with this email';
@@ -250,6 +307,26 @@ class AuthService {
   // Get user ID
   String? getUserId() {
     return currentUser?.uid;
+  }
+
+  // Get username
+  Future<String> getUsername() async {
+    if (currentUser?.email != null) {
+      try {
+        // Try to get from MongoDB first
+        final userId = currentUser!.uid;
+        final savedName = await _mongoService.getSetting(userId, 'user_name');
+        if (savedName != null && savedName.toString().isNotEmpty) {
+          return savedName.toString();
+        }
+      } catch (e) {
+        print('Error getting saved username: $e');
+      }
+      
+      // Fall back to extracting from email
+      return extractUsername(currentUser!.email!);
+    }
+    return 'User';
   }
 
   // Reset password

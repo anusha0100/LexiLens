@@ -15,17 +15,19 @@ class DocumentTag {
 
   Map<String, dynamic> toJson() => {
     if (id != null) '_id': id,
-    'tag_name': tagName,
-    'user_id': userId,
+    'tagName': tagName,
+    'userId': userId,
     'color': color,
-    'created_at': createdAt.toIso8601String(),
+    'createdAt': createdAt.toIso8601String(),
   };
 
   factory DocumentTag.fromJson(Map<String, dynamic> json) => DocumentTag(
     id: json['_id']?.toString(),
-    tagName: json['tag_name'],
-    userId: json['user_id'],
-    color: json['color'],
-    createdAt: DateTime.parse(json['created_at']),
+    tagName: json['tagName'] ?? '',
+    userId: json['userId'] ?? '',
+    color: json['color'] ?? '#FF0000',
+    createdAt: json['createdAt'] != null 
+        ? DateTime.parse(json['createdAt']) 
+        : DateTime.now(),
   );
 }

@@ -1,3 +1,4 @@
+// lib/bloc/app_events.dart
 import 'package:equatable/equatable.dart';
 import 'package:lexilens/bloc/app_states.dart';
 
@@ -12,6 +13,20 @@ class NavigateToScan extends AppEvent {}
 class NavigateToDocs extends AppEvent {}
 class NavigateToFilter extends AppEvent {}
 class NavigateToSettings extends AppEvent {}
+
+// User Profile Events
+class LoadUserProfile extends AppEvent {}
+
+class UpdateUserProfile extends AppEvent {
+  final String? name;
+  final String? email;
+  final String? phone;
+  
+  UpdateUserProfile({this.name, this.email, this.phone});
+  
+  @override
+  List<Object?> get props => [name, email, phone];
+}
 
 // Document Events
 class LoadDocuments extends AppEvent {}
