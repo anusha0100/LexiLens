@@ -1,12 +1,10 @@
-// lib/screens/backend_test_screen.dart
-// lib/screens/backend_test_screen.dart
+// lib/screens/backend_test_screen.dart (IMPROVED VERSION)
 import 'package:flutter/material.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/services/auth_service.dart';
 import 'package:lexilens/models/document_model.dart';
 import 'package:lexilens/models/document_tag.dart';
 import 'package:lexilens/models/user_session.dart';
-
 
 class BackendTestScreen extends StatefulWidget {
   const BackendTestScreen({super.key});
@@ -21,14 +19,38 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
   final _logController = ScrollController();
   final List<String> _logs = [];
   bool _isTesting = false;
+  bool _isConnected = false;
 
-  void _addLog(String message, {bool isError = false}) {
+  @override
+  void initState() {
+    super.initState();
+    _testConnection();
+  }
+
+  Future<void> _testConnection() async {
+    _addLog('Testing backend connection...', isInfo: true);
+    
+    final connected = await _mongoService.testConnection();
+    
     setState(() {
-      final timestamp = DateTime.now().toString().substring(11, 19);
-      _logs.add('[$timestamp] ${isError ? '❌' : '✅'} $message');
+      _isConnected = connected;
     });
     
-    // Auto scroll to bottom
+    if (connected) {
+      _addLog('✅ Backend connected successfully!');
+    } else {
+      _addLog('❌ Backend connection failed!', isError: true);
+      _addLog('Please check your backend URL in mongodb_service.dart', isError: true);
+    }
+  }
+
+  void _addLog(String message, {bool isError = false, bool isInfo = false}) {
+    setState(() {
+      final timestamp = DateTime.now().toString().substring(11, 19);
+      final icon = isError ? '❌' : (isInfo ? 'ℹ️' : '✅');
+      _logs.add('[$timestamp] $icon $message');
+    });
+    
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_logController.hasClients) {
         _logController.animateTo(
@@ -41,19 +63,30 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
   }
 
   Future<void> _runAllTests() async {
+    if (!_isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Backend not connected! Please check your configuration.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() {
       _isTesting = true;
       _logs.clear();
     });
 
-    _addLog('Starting backend tests...');
+    _addLog('Starting comprehensive backend tests...', isInfo: true);
     
+    await _testConnection();
     await _testUserSession();
     await _testDocuments();
     await _testTags();
     await _testSettings();
     
-    _addLog('All tests completed!');
+    _addLog('All tests completed!', isInfo: true);
     
     setState(() {
       _isTesting = false;
@@ -61,7 +94,7 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
   }
 
   Future<void> _testUserSession() async {
-    _addLog('--- Testing User Sessions ---');
+    _addLog('--- Testing User Sessions ---', isInfo: true);
     
     final userId = _authService.getUserId();
     if (userId == null) {
@@ -70,7 +103,6 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
     }
 
     try {
-      // Test: Create Session
       _addLog('Creating new session...');
       final session = UserSession(
         userId: userId,
@@ -84,15 +116,13 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
       
       final createdSession = await _mongoService.createSession(session);
       if (createdSession != null) {
-        _addLog('Session created successfully: ${createdSession.id}');
+        _addLog('Session created: ${createdSession.id}');
         
-        // Test: Get Active Session
         _addLog('Fetching active session...');
         final activeSession = await _mongoService.getActiveSession(userId);
         if (activeSession != null) {
           _addLog('Active session retrieved: ${activeSession.id}');
           
-          // Test: Invalidate Session
           if (activeSession.id != null) {
             _addLog('Invalidating session...');
             final invalidated = await _mongoService.invalidateSession(activeSession.id!);
@@ -114,7 +144,7 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
   }
 
   Future<void> _testDocuments() async {
-    _addLog('--- Testing Documents ---');
+    _addLog('--- Testing Documents ---', isInfo: true);
     
     final userId = _authService.getUserId();
     if (userId == null) {
@@ -123,12 +153,11 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
     }
 
     try {
-      // Test: Create Document
       _addLog('Creating test document...');
       final document = DocumentModel(
         userId: userId,
-        name: 'Test Document ${DateTime.now().millisecondsSinceEpoch}',
-        content: 'This is a test document created for backend testing.',
+        name: 'Test_Doc_${DateTime.now().millisecondsSinceEpoch}',
+        content: 'This is a test document for backend testing.',
         uploadedDate: DateTime.now(),
         tags: ['test', 'backend'],
         isFavorite: false,
@@ -138,13 +167,11 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
       if (createdDoc != null && createdDoc.id != null) {
         _addLog('Document created: ${createdDoc.name}');
         
-        // Test: Get Document
         _addLog('Retrieving document...');
         final retrievedDoc = await _mongoService.getDocument(createdDoc.id!);
         if (retrievedDoc != null) {
           _addLog('Document retrieved: ${retrievedDoc.name}');
           
-          // Test: Update Document
           _addLog('Updating document...');
           final updated = await _mongoService.updateDocument(
             createdDoc.id!,
@@ -156,12 +183,10 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
             _addLog('Failed to update document', isError: true);
           }
           
-          // Test: Get User Documents
           _addLog('Fetching all user documents...');
           final userDocs = await _mongoService.getUserDocuments(userId);
           _addLog('Found ${userDocs.length} documents');
           
-          // Test: Delete Document
           _addLog('Deleting test document...');
           final deleted = await _mongoService.deleteDocument(createdDoc.id!);
           if (deleted) {
@@ -181,7 +206,7 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
   }
 
   Future<void> _testTags() async {
-    _addLog('--- Testing Document Tags ---');
+    _addLog('--- Testing Document Tags ---', isInfo: true);
     
     final userId = _authService.getUserId();
     if (userId == null) {
@@ -190,11 +215,10 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
     }
 
     try {
-      // Test: Create Tag
       _addLog('Creating test tag...');
       final tag = DocumentTag(
         userId: userId,
-        tagName: 'Test Tag ${DateTime.now().millisecondsSinceEpoch}',
+        tagName: 'Test_Tag_${DateTime.now().millisecondsSinceEpoch}',
         color: '#FF5733',
         createdAt: DateTime.now(),
       );
@@ -203,12 +227,10 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
       if (createdTag != null && createdTag.id != null) {
         _addLog('Tag created: ${createdTag.tagName}');
         
-        // Test: Get User Tags
         _addLog('Fetching user tags...');
         final userTags = await _mongoService.getUserTags(userId);
         _addLog('Found ${userTags.length} tags');
         
-        // Test: Delete Tag
         _addLog('Deleting test tag...');
         final deleted = await _mongoService.deleteTag(createdTag.id!);
         if (deleted) {
@@ -225,7 +247,7 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
   }
 
   Future<void> _testSettings() async {
-    _addLog('--- Testing App Settings ---');
+    _addLog('--- Testing App Settings ---', isInfo: true);
     
     final userId = _authService.getUserId();
     if (userId == null) {
@@ -234,10 +256,9 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
     }
 
     try {
-      // Test: Update Settings
       _addLog('Updating test settings...');
       final settingsToTest = {
-        'test_string': 'Hello World',
+        'test_string': 'Hello Backend',
         'test_number': 42,
         'test_boolean': true,
         'test_double': 3.14,
@@ -248,22 +269,20 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
         if (updated) {
           _addLog('Setting updated: ${entry.key} = ${entry.value}');
         } else {
-          _addLog('Failed to update setting: ${entry.key}', isError: true);
+          _addLog('Failed to update: ${entry.key}', isError: true);
         }
       }
       
-      // Test: Get Individual Settings
       _addLog('Retrieving individual settings...');
       for (var key in settingsToTest.keys) {
         final value = await _mongoService.getSetting(userId, key);
         if (value != null) {
-          _addLog('Retrieved setting: $key = $value');
+          _addLog('Retrieved: $key = $value');
         } else {
-          _addLog('Failed to retrieve setting: $key', isError: true);
+          _addLog('Failed to retrieve: $key', isError: true);
         }
       }
       
-      // Test: Get All Settings
       _addLog('Retrieving all settings...');
       final allSettings = await _mongoService.getAllSettings(userId);
       _addLog('Found ${allSettings.length} total settings');
@@ -297,6 +316,11 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh connection',
+            onPressed: _testConnection,
+          ),
+          IconButton(
             icon: const Icon(Icons.delete, color: Colors.white),
             tooltip: 'Clear logs',
             onPressed: () {
@@ -309,85 +333,92 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
       ),
       body: Column(
         children: [
+          // Connection Status
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: _isConnected ? Colors.green.shade50 : Colors.red.shade50,
+            child: Row(
+              children: [
+                Icon(
+                  _isConnected ? Icons.check_circle : Icons.error,
+                  color: _isConnected ? Colors.green : Colors.red,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _isConnected ? 'Backend Connected' : 'Backend Disconnected',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: _isConnected ? Colors.green.shade900 : Colors.red.shade900,
+                          fontFamily: 'OpenDyslexic',
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isConnected 
+                            ? 'Ready to run tests' 
+                            : 'Check your backend URL configuration',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isConnected ? Colors.green.shade700 : Colors.red.shade700,
+                          fontFamily: 'OpenDyslexic',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
           // Test Control Panel
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.grey[100],
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                ElevatedButton.icon(
-                  onPressed: _isTesting ? null : _runAllTests,
-                  icon: _isTesting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Icon(Icons.play_arrow),
-                  label: Text(
-                    _isTesting ? 'Running Tests...' : 'Run All Tests',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenDyslexic',
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _isTesting || !_isConnected ? null : _runAllTests,
+                    icon: _isTesting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.play_arrow),
+                    label: Text(
+                      _isTesting ? 'Running Tests...' : 'Run All Tests',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenDyslexic',
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFB789DA),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey[400],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFB789DA),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTestButton(
-                        'Sessions',
-                        Icons.vpn_key,
-                        () => _testUserSession(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildTestButton(
-                        'Documents',
-                        Icons.description,
-                        () => _testDocuments(),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTestButton(
-                        'Tags',
-                        Icons.label,
-                        () => _testTags(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _buildTestButton(
-                        'Settings',
-                        Icons.settings,
-                        () => _testSettings(),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
+          
           // Log Display
           Expanded(
             child: Container(
@@ -425,6 +456,7 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
                     ),
             ),
           ),
+          
           // Status Bar
           Container(
             padding: const EdgeInsets.all(12),
@@ -437,16 +469,17 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
                   size: 16,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  _authService.isLoggedIn
-                      ? 'User: ${_authService.getUserEmail() ?? "Unknown"}'
-                      : 'Not logged in',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'OpenDyslexic',
+                Expanded(
+                  child: Text(
+                    _authService.isLoggedIn
+                        ? 'User: ${_authService.getUserEmail() ?? "Unknown"}'
+                        : 'Not logged in',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'OpenDyslexic',
+                    ),
                   ),
                 ),
-                const Spacer(),
                 Text(
                   '${_logs.length} logs',
                   style: TextStyle(
@@ -459,28 +492,6 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTestButton(String label, IconData icon, VoidCallback onPressed) {
-    return OutlinedButton.icon(
-      onPressed: _isTesting ? null : onPressed,
-      icon: Icon(icon, size: 16),
-      label: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontFamily: 'OpenDyslexic',
-        ),
-      ),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFFB789DA),
-        side: const BorderSide(color: Color(0xFFB789DA)),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
       ),
     );
   }

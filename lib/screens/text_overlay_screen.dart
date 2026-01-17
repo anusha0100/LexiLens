@@ -9,6 +9,9 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:lexilens/bloc/app_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
+import 'package:lexilens/models/document_model.dart';
+import 'package:lexilens/services/auth_service.dart';
+import 'package:lexilens/services/mongodb_service.dart';
 
 class TextOverlayScreen extends StatefulWidget {
   final String imagePath;
@@ -35,6 +38,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   final GlobalKey _imageKey = GlobalKey();
   late bool _useOpenDyslexic;
   late double _fontSize;
+  bool _isSaving = false;
+  final _authService = AuthService();
+  final _mongoService = MongoDBService();
 
   @override
   void initState() {
@@ -132,6 +138,68 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     );
   }
 
+   Future<void> _saveDocument() async {
+    if (_isSaving) return;
+    
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final userId = _authService.getUserId();
+      
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      // Create document model from extracted text
+      final document = DocumentModel(
+        userId: userId,
+        name: 'Scanned_${DateTime.now().millisecondsSinceEpoch}',
+        content: _extractedText,
+        filePath: widget.imagePath,
+        uploadedDate: DateTime.now(),
+        tags: [],
+        isFavorite: false,
+      );
+
+      // Save to MongoDB
+      final savedDoc = await _mongoService.createDocument(document);
+
+      if (savedDoc != null && mounted) {
+        // Success - update the app state
+        context.read<AppBloc>().add(LoadDocuments());
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Document saved successfully!'),
+            backgroundColor: Color(0xFFB789DA),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      } else {
+        throw Exception('Failed to save document');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error saving document: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AppBloc, AppState>(
@@ -228,16 +296,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                     onTap: _copyToClipboard,
                   ),
                   _buildBottomButton(
-                    icon: Icons.save,
-                    label: 'Save',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Save feature coming soon!'),
-                          backgroundColor: Color(0xFFB789DA),
-                        ),
-                      );
-                    },
+                    icon: _isSaving ? Icons.hourglass_bottom : Icons.save,
+                    label: _isSaving ? 'Saving...' : 'Save',
+                    onTap: _isSaving ? () {} : _saveDocument,
                   ),
                   _buildBottomButton(
                     icon: Icons.share,

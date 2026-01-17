@@ -96,7 +96,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📱 For Android Emulator: http://10.0.2.2:${PORT}`);
   console.log(`📱 For iOS Simulator: http://localhost:${PORT}`);
-  console.log(`📱 For Physical Device: http://YOUR_IP:${PORT}`);
+  console.log(`📱 For Physical Device: http://172.19.134.81:${PORT}`);
   console.log('');
   console.log('Available endpoints:');
   console.log(`  - Health Check: http://localhost:${PORT}/api/health`);

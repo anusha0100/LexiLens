@@ -1,26 +1,22 @@
-// lib/services/mongodb_service.dart (UPDATED)
+// lib/services/mongodb_service.dart (FIXED VERSION)
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:lexilens/models/user_session.dart';
-import 'package:lexilens/models/word_dictionary.dart';
-import 'package:lexilens/models/document_tag.dart';
 import 'package:lexilens/models/document_model.dart';
+import 'package:lexilens/models/document_tag.dart';
+import 'package:lexilens/models/user_session.dart';
 
 class MongoDBService {
   static final MongoDBService _instance = MongoDBService._internal();
   factory MongoDBService() => _instance;
   MongoDBService._internal();
+  static const String baseUrl = 'https://lexilens-backend-yyix.onrender.com';
   
-  // ⚠️ IMPORTANT: Update this URL to match your backend server
-  // For Android Emulator: use http://10.0.2.2:3000/api
-  // For iOS Simulator: use http://localhost:3000/api
-  // For Physical Device: use http://YOUR_COMPUTER_IP:3000/api
-  
-  static const String baseUrl = 'http://10.0.2.2:3000/api'; // Android Emulator
-  // static const String baseUrl = 'http://localhost:3000/api'; // iOS Simulator
-  // static const String baseUrl = 'http://192.168.1.100:3000/api'; // Physical Device (replace with your IP)
-  
-  String? _authToken;
+  // For local testing:
+  // Android Emulator: 'http://10.0.2.2:3000/api'
+  // iOS Simulator: 'http://localhost:3000/api'
+  // Physical Device: 'http://YOUR_IP_ADDRESS:3000/api'
+
+  String _authToken = '';
 
   void setAuthToken(String token) {
     _authToken = token;
@@ -28,25 +24,16 @@ class MongoDBService {
 
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',
-    if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+    if (_authToken.isNotEmpty) 'Authorization': 'Bearer $_authToken',
   };
 
-  // Test connection
-  Future<bool> testConnection() async {
-    try {
-      final response = await http.get(
-        Uri.parse('${baseUrl.replaceAll('/api', '')}/api/health'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 5));
-      
-      return response.statusCode == 200;
-    } catch (e) {
-      print('Connection test failed: $e');
-      return false;
-    }
+  // Error handler helper
+  void _handleError(dynamic error, String operation) {
+    print('MongoDB Service Error [$operation]: $error');
   }
 
-  // User Session Methods
+  // ==================== SESSION OPERATIONS ====================
+  
   Future<UserSession?> createSession(UserSession session) async {
     try {
       final response = await http.post(
@@ -55,13 +42,17 @@ class MongoDBService {
         body: jsonEncode(session.toJson()),
       );
 
-      if (response.statusCode == 201) {
-        return UserSession.fromJson(jsonDecode(response.body));
+      print('Create Session Response: ${response.statusCode}');
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return UserSession.fromJson(data);
       }
-      print('Create session failed: ${response.statusCode} - ${response.body}');
+      
+      print('Create Session Failed: ${response.body}');
       return null;
     } catch (e) {
-      print('Error creating session: $e');
+      _handleError(e, 'createSession');
       return null;
     }
   }
@@ -74,11 +65,13 @@ class MongoDBService {
       );
 
       if (response.statusCode == 200) {
-        return UserSession.fromJson(jsonDecode(response.body));
+        final data = jsonDecode(response.body);
+        return UserSession.fromJson(data);
       }
+      
       return null;
     } catch (e) {
-      print('Error getting session: $e');
+      _handleError(e, 'getActiveSession');
       return null;
     }
   }
@@ -89,123 +82,131 @@ class MongoDBService {
         Uri.parse('$baseUrl/sessions/$sessionId'),
         headers: _headers,
       );
+
       return response.statusCode == 200;
     } catch (e) {
-      print('Error invalidating session: $e');
+      _handleError(e, 'invalidateSession');
       return false;
     }
   }
 
-  // Document Methods
-  Future<DocumentModel?> createDocument(DocumentModel doc) async {
+  // ==================== DOCUMENT OPERATIONS ====================
+  
+  Future<DocumentModel?> createDocument(DocumentModel document) async {
     try {
+      print('Creating document: ${document.name}');
+      
       final response = await http.post(
         Uri.parse('$baseUrl/documents'),
         headers: _headers,
-        body: jsonEncode({
-          'userId': doc.userId,
-          'fileName': doc.name,
-          'filePath': doc.filePath,
-          'documentText': doc.content,
-          'uploadedDate': doc.uploadedDate.toIso8601String(),
-          'tags': doc.tags,
-          'isFavorite': doc.isFavorite,
-        }),
+        body: jsonEncode(document.toJson()),
       );
 
-      if (response.statusCode == 201) {
+      print('Create Document Response: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return DocumentModel.fromJson(data);
       }
-      print('Create document failed: ${response.statusCode} - ${response.body}');
+      
+      print('Create Document Failed: ${response.body}');
       return null;
     } catch (e) {
-      print('Error creating document: $e');
+      _handleError(e, 'createDocument');
       return null;
     }
   }
 
   Future<List<DocumentModel>> getUserDocuments(String userId) async {
     try {
+      print('Fetching documents for user: $userId');
+      
       final response = await http.get(
         Uri.parse('$baseUrl/documents/user/$userId'),
         headers: _headers,
       );
 
+      print('Get Documents Response: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => DocumentModel.fromJson(json)).toList();
       }
+      
       return [];
     } catch (e) {
-      print('Error getting documents: $e');
+      _handleError(e, 'getUserDocuments');
       return [];
     }
   }
 
-  Future<DocumentModel?> getDocument(String docId) async {
+  Future<DocumentModel?> getDocument(String documentId) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/documents/$docId'),
+        Uri.parse('$baseUrl/documents/$documentId'),
         headers: _headers,
       );
 
       if (response.statusCode == 200) {
-        return DocumentModel.fromJson(jsonDecode(response.body));
+        final data = jsonDecode(response.body);
+        return DocumentModel.fromJson(data);
       }
+      
       return null;
     } catch (e) {
-      print('Error getting document: $e');
+      _handleError(e, 'getDocument');
       return null;
     }
   }
 
-  Future<bool> updateDocument(String docId, Map<String, dynamic> updates) async {
+  Future<bool> updateDocument(String documentId, Map<String, dynamic> updates) async {
     try {
       final response = await http.put(
-        Uri.parse('$baseUrl/documents/$docId'),
+        Uri.parse('$baseUrl/documents/$documentId'),
         headers: _headers,
         body: jsonEncode(updates),
       );
+
       return response.statusCode == 200;
     } catch (e) {
-      print('Error updating document: $e');
+      _handleError(e, 'updateDocument');
       return false;
     }
   }
 
-  Future<bool> deleteDocument(String docId) async {
+  Future<bool> deleteDocument(String documentId) async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/documents/$docId'),
+        Uri.parse('$baseUrl/documents/$documentId'),
         headers: _headers,
       );
+
       return response.statusCode == 200;
     } catch (e) {
-      print('Error deleting document: $e');
+      _handleError(e, 'deleteDocument');
       return false;
     }
   }
 
-  // Document Tag Methods
+  // ==================== TAG OPERATIONS ====================
+  
   Future<DocumentTag?> createTag(DocumentTag tag) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/tags'),
         headers: _headers,
-        body: jsonEncode({
-          'userId': tag.userId,
-          'tagName': tag.tagName,
-          'color': tag.color,
-        }),
+        body: jsonEncode(tag.toJson()),
       );
 
-      if (response.statusCode == 201) {
-        return DocumentTag.fromJson(jsonDecode(response.body));
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return DocumentTag.fromJson(data);
       }
+      
       return null;
     } catch (e) {
-      print('Error creating tag: $e');
+      _handleError(e, 'createTag');
       return null;
     }
   }
@@ -221,9 +222,10 @@ class MongoDBService {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => DocumentTag.fromJson(json)).toList();
       }
+      
       return [];
     } catch (e) {
-      print('Error getting user tags: $e');
+      _handleError(e, 'getUserTags');
       return [];
     }
   }
@@ -234,16 +236,20 @@ class MongoDBService {
         Uri.parse('$baseUrl/tags/$tagId'),
         headers: _headers,
       );
+
       return response.statusCode == 200;
     } catch (e) {
-      print('Error deleting tag: $e');
+      _handleError(e, 'deleteTag');
       return false;
     }
   }
 
-  // App Settings Methods
+  // ==================== SETTINGS OPERATIONS ====================
+  
   Future<bool> updateSetting(String userId, String key, dynamic value) async {
     try {
+      print('Updating setting: $key = $value');
+      
       final response = await http.post(
         Uri.parse('$baseUrl/settings'),
         headers: _headers,
@@ -253,9 +259,11 @@ class MongoDBService {
           'value': value,
         }),
       );
+
+      print('Update Setting Response: ${response.statusCode}');
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
-      print('Error updating setting: $e');
+      _handleError(e, 'updateSetting');
       return false;
     }
   }
@@ -271,68 +279,61 @@ class MongoDBService {
         final data = jsonDecode(response.body);
         return data['value'];
       }
+      
       return null;
     } catch (e) {
-      print('Error getting setting: $e');
+      _handleError(e, 'getSetting');
       return null;
     }
   }
 
   Future<Map<String, dynamic>> getAllSettings(String userId) async {
     try {
+      print('Fetching all settings for user: $userId');
+      
       final response = await http.get(
         Uri.parse('$baseUrl/settings/user/$userId'),
         headers: _headers,
       );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> settings = jsonDecode(response.body);
-        Map<String, dynamic> settingsMap = {};
-        for (var setting in settings) {
-          settingsMap[setting['settingKey']] = setting['value'];
-        }
-        return settingsMap;
-      }
-      return {};
-    } catch (e) {
-      print('Error getting all settings: $e');
-      return {};
-    }
-  }
-
-  // Word Dictionary Methods
-  Future<WordDictionary?> getWordInfo(String word) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/dictionary/$word'),
-        headers: _headers,
-      );
-
-      if (response.statusCode == 200) {
-        return WordDictionary.fromJson(jsonDecode(response.body));
-      }
-      return null;
-    } catch (e) {
-      print('Error getting word info: $e');
-      return null;
-    }
-  }
-
-  Future<List<WordDictionary>> searchWords(String query) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/dictionary/search/$query'),
-        headers: _headers,
-      );
-
+      print('Get Settings Response: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => WordDictionary.fromJson(json)).toList();
+        final Map<String, dynamic> settings = {};
+        
+        for (var setting in data) {
+          settings[setting['settingKey']] = setting['value'];
+        }
+        
+        return settings;
       }
-      return [];
+      
+      return {};
     } catch (e) {
-      print('Error searching words: $e');
-      return [];
+      _handleError(e, 'getAllSettings');
+      return {};
+    }
+  }
+
+  // ==================== CONNECTIVITY TEST ====================
+  
+  Future<bool> testConnection() async {
+    try {
+      print('Testing connection to: $baseUrl/health');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/health'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 5));
+
+      print('Connection Test Response: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      _handleError(e, 'testConnection');
+      return false;
     }
   }
 }
