@@ -1,4 +1,4 @@
-// lib/screens/upload_pdf_screen.dart (FIXED VERSION)
+// lib/screens/upload_pdf_screen.dart (COMPLETE FLOW)
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -29,7 +29,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
+        allowedExtensions: ['pdf', 'txt'],
         allowMultiple: true,
       );
 
@@ -38,10 +38,12 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
           _selectedFiles = result.files;
         });
         
-        // Extract text from PDFs immediately after selection
+        // Extract text from files immediately
         for (var file in _selectedFiles) {
           if (file.extension?.toLowerCase() == 'pdf') {
             await _extractTextFromPDF(file);
+          } else if (file.extension?.toLowerCase() == 'txt') {
+            await _extractTextFromTXT(file);
           }
         }
       }
@@ -61,76 +63,72 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     if (file.path == null) return;
 
     setState(() {
-      _extractionStatus[file.name] = true; // Start extraction
+      _extractionStatus[file.name] = true;
     });
 
     try {
       final File pdfFile = File(file.path!);
       final List<int> bytes = await pdfFile.readAsBytes();
       
-      // Load the PDF document
       final PdfDocument document = PdfDocument(inputBytes: bytes);
-      
-      // Extract text from all pages
       String extractedText = '';
       final PdfTextExtractor extractor = PdfTextExtractor(document);
       
       for (int i = 0; i < document.pages.count; i++) {
-        extractedText += extractor.extractText(startPageIndex: i, endPageIndex: i);
-        extractedText += '\n\n'; // Add spacing between pages
+        String pageText = extractor.extractText(startPageIndex: i, endPageIndex: i);
+        if (pageText.isNotEmpty) {
+          extractedText += pageText;
+          extractedText += '\n\n';
+        }
       }
       
-      // Clean up the text
       extractedText = extractedText.trim();
       
-      // Store the extracted text
       setState(() {
         _extractedTexts[file.name] = extractedText.isNotEmpty 
             ? extractedText 
-            : 'No text could be extracted from this PDF';
-        _extractionStatus[file.name] = false; // Extraction complete
+            : 'No text found in PDF';
+        _extractionStatus[file.name] = false;
       });
       
-      // Dispose the document
       document.dispose();
       
       print('✅ Extracted ${extractedText.length} characters from ${file.name}');
       
     } catch (e) {
-      print('❌ Error extracting text from PDF: $e');
+      print('❌ PDF extraction error: $e');
       setState(() {
-        _extractedTexts[file.name] = 'Error extracting text from PDF';
+        _extractedTexts[file.name] = 'Error: Could not extract text from PDF';
         _extractionStatus[file.name] = false;
       });
     }
   }
 
-  Future<String> _readFileContent(PlatformFile file) async {
+  Future<void> _extractTextFromTXT(PlatformFile file) async {
+    if (file.path == null) return;
+
+    setState(() {
+      _extractionStatus[file.name] = true;
+    });
+
     try {
-      if (file.path == null) return 'File path not available';
+      final content = await File(file.path!).readAsString();
       
-      // Check if we already extracted text from this PDF
-      if (file.extension?.toLowerCase() == 'pdf' && _extractedTexts.containsKey(file.name)) {
-        return _extractedTexts[file.name]!;
-      }
+      setState(() {
+        _extractedTexts[file.name] = content.isNotEmpty 
+            ? content 
+            : 'Empty text file';
+        _extractionStatus[file.name] = false;
+      });
       
-      // For TXT files, read directly
-      if (file.extension?.toLowerCase() == 'txt') {
-        final fileContent = await File(file.path!).readAsString();
-        return fileContent;
-      }
+      print('✅ Read ${content.length} characters from ${file.name}');
       
-      // For DOC/DOCX files
-      if (file.extension?.toLowerCase() == 'doc' || file.extension?.toLowerCase() == 'docx') {
-        // You would need a package like 'docx_to_text' for this
-        // For now, return a placeholder
-        return 'Document content (DOC/DOCX support requires additional package)';
-      }
-      
-      return 'Content not available for this file type';
     } catch (e) {
-      print('Error reading file: $e');
-      return 'Error reading file content';
+      print('❌ TXT read error: $e');
+      setState(() {
+        _extractedTexts[file.name] = 'Error: Could not read text file';
+        _extractionStatus[file.name] = false;
+      });
     }
   }
 
@@ -166,10 +164,9 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
 
       for (final file in _selectedFiles) {
         try {
-          // Get the content (either extracted from PDF or read from file)
-          final content = await _readFileContent(file);
+          final content = _extractedTexts[file.name] ?? '';
           
-          if (content.isEmpty || content.contains('Error') || content.contains('not available')) {
+          if (content.isEmpty || content.contains('Error') || content.contains('No text')) {
             print('⚠️ Skipping ${file.name} - no valid content');
             failCount++;
             continue;
@@ -185,7 +182,9 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
             isFavorite: false,
           );
 
-          print('📤 Uploading ${file.name} with ${content.length} characters');
+          print('📤 Uploading ${file.name}...');
+          print('📝 Content length: ${content.length} characters');
+          print('📝 First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
           
           final savedDoc = await _mongoService.createDocument(document);
           
@@ -194,10 +193,10 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
             print('✅ Successfully uploaded ${file.name}');
           } else {
             failCount++;
-            print('❌ Failed to upload ${file.name}');
+            print('❌ Failed to save ${file.name} to database');
           }
         } catch (e) {
-          print('Error uploading ${file.name}: $e');
+          print('❌ Error uploading ${file.name}: $e');
           failCount++;
         }
       }
@@ -217,7 +216,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
           message = '$successCount succeeded, $failCount failed';
           bgColor = Colors.orange;
         } else {
-          message = 'Failed to upload files';
+          message = 'Failed to upload files. Please check file content.';
           bgColor = Colors.red;
         }
 
@@ -230,17 +229,19 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         );
 
         if (successCount > 0) {
-          // Reload documents in the app
+          // Reload documents
           context.read<AppBloc>().add(LoadDocuments());
           
-          // Clear the selected files
+          // Wait a bit for the reload
+          await Future.delayed(const Duration(milliseconds: 500));
+          
+          // Clear and go back
           setState(() {
             _selectedFiles.clear();
             _extractedTexts.clear();
             _extractionStatus.clear();
           });
           
-          // Go back to previous screen
           Navigator.pop(context);
         }
       }
@@ -422,7 +423,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              'Select PDF, DOC, DOCX, or TXT files\nto upload and read with LexiLens',
+              'Select PDF or TXT files\nto upload and read with LexiLens',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
@@ -449,7 +450,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'PDF text extraction supported\nMax file size: 10MB per file',
+                    'Automatic text extraction\nMax file size: 10MB per file',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[700],
@@ -472,7 +473,9 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
       itemBuilder: (context, index) {
         final file = _selectedFiles[index];
         final isExtracting = _extractionStatus[file.name] ?? false;
-        final hasExtractedText = _extractedTexts.containsKey(file.name);
+        final extractedText = _extractedTexts[file.name];
+        final hasError = extractedText?.contains('Error') ?? false;
+        final isEmpty = extractedText?.contains('No text') ?? false;
         
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -499,7 +502,9 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
                     )
                   : Icon(
                       _getFileIcon(file.extension ?? ''),
-                      color: const Color(0xFFB789DA),
+                      color: hasError || isEmpty 
+                          ? Colors.red 
+                          : const Color(0xFFB789DA),
                       size: 28,
                     ),
             ),
@@ -533,9 +538,18 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
                       fontFamily: 'OpenDyslexic',
                     ),
                   )
-                else if (hasExtractedText)
+                else if (hasError || isEmpty)
                   Text(
-                    '✓ Text extracted (${_extractedTexts[file.name]!.length} chars)',
+                    extractedText!,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.red,
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  )
+                else if (extractedText != null)
+                  Text(
+                    '✓ Ready (${extractedText.length} characters)',
                     style: const TextStyle(
                       fontSize: 11,
                       color: Colors.green,
@@ -558,9 +572,6 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     switch (extension.toLowerCase()) {
       case 'pdf':
         return Icons.picture_as_pdf;
-      case 'doc':
-      case 'docx':
-        return Icons.description;
       case 'txt':
         return Icons.text_snippet;
       default:
@@ -568,3 +579,4 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     }
   }
 }
+

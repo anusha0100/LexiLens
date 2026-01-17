@@ -1,5 +1,4 @@
-// ignore_for_file: deprecated_member_use
-
+// lib/screens/documents_screen.dart (UPDATED WITH DELETE)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -7,6 +6,8 @@ import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/screens/reading_screen.dart';
 import 'package:lexilens/screens/upload_pdf_screen.dart';
+import 'package:lexilens/services/mongodb_service.dart';
+import 'package:lexilens/services/auth_service.dart';
 
 class DocumentsScreen extends StatelessWidget {
   const DocumentsScreen({super.key});
@@ -33,12 +34,16 @@ class DocumentsScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.search, 
-              color: Colors.black,
-            ),
+            icon: const Icon(Icons.refresh, color: Colors.black),
             onPressed: () {
-              // TODO: Implement search
+              context.read<AppBloc>().add(LoadDocuments());
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Refreshing documents...'),
+                  duration: Duration(seconds: 1),
+                  backgroundColor: Color(0xFFB789DA),
+                ),
+              );
             },
           ),
         ],
@@ -66,7 +71,8 @@ class DocumentsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start by scanning or uploading a document',
+                    'Upload or scan a document to get started',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[500],
@@ -80,30 +86,18 @@ class DocumentsScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Filter tabs
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20, 
-                  vertical: 12,
-                ),
+              // Document count
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Row(
                   children: [
-                    _FilterChip(
-                      label: 'All',
-                      isSelected: true,
-                      onTap: () {},
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Recent',
-                      isSelected: false,
-                      onTap: () {},
-                    ),
-                    const SizedBox(width: 8),
-                    _FilterChip(
-                      label: 'Favorites',
-                      isSelected: false,
-                      onTap: () {},
+                    Text(
+                      '${state.recentDocuments.length} document${state.recentDocuments.length > 1 ? 's' : ''}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontFamily: 'OpenDyslexic',
+                      ),
                     ),
                   ],
                 ),
@@ -118,22 +112,95 @@ class DocumentsScreen extends StatelessWidget {
                     return _DocumentCard(
                       document: doc,
                       onTap: () {
+                        print('📖 Opening document: ${doc.name}');
+                        print('📝 Content length: ${doc.content.length}');
                         context.read<AppBloc>().add(OpenDocument(doc.id));
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const ReadingScreen(),
+                            builder: (_) => BlocProvider.value(
+                              value: context.read<AppBloc>(),
+                              child: const ReadingScreen(),
+                            ),
                           ),
                         );
                       },
-                      onDelete: () {
-                        context.read<AppBloc>().add(DeleteDocument(doc.id));
-                      },
-                      onShare: () {
-                        // TODO: Implement share
-                      },
-                      onFavorite: () {
-                        // TODO: Implement favorite
+                      onDelete: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            title: const Text(
+                              'Delete Document',
+                              style: TextStyle(fontFamily: 'OpenDyslexic'),
+                            ),
+                            content: Text(
+                              'Are you sure you want to delete "${doc.name}"? This cannot be undone.',
+                              style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(dialogContext, false),
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontFamily: 'OpenDyslexic',
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(dialogContext, true),
+                                child: const Text(
+                                  'Delete',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'OpenDyslexic',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirmed == true && context.mounted) {
+                          // Show loading
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Deleting document...'),
+                              duration: Duration(seconds: 1),
+                              backgroundColor: Color(0xFFB789DA),
+                            ),
+                          );
+
+                          // Delete from MongoDB
+                          final mongoService = MongoDBService();
+                          final deleted = await mongoService.deleteDocument(doc.id);
+
+                          if (context.mounted) {
+                            if (deleted) {
+                              // Update local state
+                              context.read<AppBloc>().add(DeleteDocument(doc.id));
+                              
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Document deleted successfully'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Failed to delete document'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        }
                       },
                     );
                   },
@@ -148,7 +215,10 @@ class DocumentsScreen extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => const UploadPDFScreen(),
+              builder: (_) => BlocProvider.value(
+                value: context.read<AppBloc>(),
+                child: const UploadPDFScreen(),
+              ),
             ),
           );
         },
@@ -165,57 +235,15 @@ class DocumentsScreen extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 16, 
-          vertical: 8,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFB789DA) : Colors.grey[200],
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey[700],
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            fontFamily: 'OpenDyslexic',
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _DocumentCard extends StatelessWidget {
   final Document document;
   final VoidCallback onTap;
   final VoidCallback onDelete;
-  final VoidCallback onShare;
-  final VoidCallback onFavorite;
 
   const _DocumentCard({
     required this.document,
     required this.onTap,
     required this.onDelete,
-    required this.onShare,
-    required this.onFavorite,
   });
 
   String _getTimeAgo(DateTime date) {
@@ -226,6 +254,8 @@ class _DocumentCard extends StatelessWidget {
       return '${difference.inDays}d ago';
     } else if (difference.inHours > 0) {
       return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
     } else {
       return 'Just now';
     }
@@ -287,13 +317,13 @@ class _DocumentCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(
-                          Icons.description, 
-                          size: 14, 
+                          Icons.text_snippet,
+                          size: 14,
                           color: Colors.grey[500],
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'PDF',
+                          '${document.content.length} characters',
                           style: TextStyle(
                             fontSize: 11,
                             color: Colors.grey[600],
@@ -305,59 +335,46 @@ class _DocumentCard extends StatelessWidget {
                   ],
                 ),
               ),
-              // Action menu
               PopupMenuButton(
                 icon: const Icon(Icons.more_vert),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 itemBuilder: (context) => [
-                  PopupMenuItem(
-                    onTap: onFavorite,
+                  const PopupMenuItem(
+                    value: 'read',
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.star_outline, 
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text('Favorite'),
+                        Icon(Icons.book_outlined, size: 20),
+                        SizedBox(width: 8),
+                        Text('Read', style: TextStyle(fontFamily: 'OpenDyslexic')),
                       ],
                     ),
                   ),
-                  PopupMenuItem(
-                    onTap: onShare,
+                  const PopupMenuItem(
+                    value: 'delete',
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.share_outlined, 
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text('Share'),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    onTap: onDelete,
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.delete_outline, 
-                          size: 20, 
-                          color: Colors.red,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Delete', 
+                        Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text(
+                          'Delete',
                           style: TextStyle(
                             color: Colors.red,
+                            fontFamily: 'OpenDyslexic',
                           ),
                         ),
                       ],
                     ),
                   ),
                 ],
+                onSelected: (value) {
+                  if (value == 'read') {
+                    onTap();
+                  } else if (value == 'delete') {
+                    onDelete();
+                  }
+                },
               ),
             ],
           ),
@@ -366,3 +383,4 @@ class _DocumentCard extends StatelessWidget {
     );
   }
 }
+
