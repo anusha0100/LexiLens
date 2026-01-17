@@ -1,4 +1,4 @@
-// lib/services/mongodb_service.dart (FIXED VERSION)
+// lib/services/mongodb_service.dart (RENDER DEPLOYMENT FIX)
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:lexilens/models/document_model.dart';
@@ -9,12 +9,9 @@ class MongoDBService {
   static final MongoDBService _instance = MongoDBService._internal();
   factory MongoDBService() => _instance;
   MongoDBService._internal();
-  static const String baseUrl = 'https://lexilens-backend-yyix.onrender.com';
-  
-  // For local testing:
-  // Android Emulator: 'http://10.0.2.2:3000/api'
-  // iOS Simulator: 'http://localhost:3000/api'
-  // Physical Device: 'http://YOUR_IP_ADDRESS:3000/api'
+
+  // ✅ YOUR RENDER DEPLOYMENT URL
+  static const String baseUrl = 'https://lexilens-backend-yyix.onrender.com/api';
 
   String _authToken = '';
 
@@ -24,32 +21,76 @@ class MongoDBService {
 
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     if (_authToken.isNotEmpty) 'Authorization': 'Bearer $_authToken',
   };
 
-  // Error handler helper
   void _handleError(dynamic error, String operation) {
-    print('MongoDB Service Error [$operation]: $error');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('❌ MongoDB Service Error');
+    print('Operation: $operation');
+    print('Error: $error');
+    print('BaseURL: $baseUrl');
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }
+
+  // ==================== CONNECTIVITY TEST ====================
+  
+  Future<bool> testConnection() async {
+    try {
+      print('🔍 Testing connection to: $baseUrl/health');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/health'),
+        headers: _headers,
+      ).timeout(
+        const Duration(seconds: 15), // Longer timeout for Render cold starts
+        onTimeout: () {
+          throw Exception('Connection timeout - Server might be starting up (Render cold start)');
+        },
+      );
+
+      print('📡 Response Status: ${response.statusCode}');
+      print('📄 Response Body: ${response.body}');
+      
+      if (response.statusCode == 200) {
+        print('✅ Backend connection successful!');
+        return true;
+      } else {
+        print('⚠️ Unexpected status code: ${response.statusCode}');
+        return false;
+      }
+    } catch (e) {
+      print('❌ Connection test failed:');
+      print('   Error: $e');
+      print('   URL: $baseUrl/health');
+      print('   Note: Render free tier has cold starts - may take 30s on first request');
+      _handleError(e, 'testConnection');
+      return false;
+    }
   }
 
   // ==================== SESSION OPERATIONS ====================
   
   Future<UserSession?> createSession(UserSession session) async {
     try {
+      print('📝 Creating session for user: ${session.userId}');
+      
       final response = await http.post(
         Uri.parse('$baseUrl/sessions'),
         headers: _headers,
         body: jsonEncode(session.toJson()),
-      );
+      ).timeout(const Duration(seconds: 15));
 
-      print('Create Session Response: ${response.statusCode}');
+      print('Session Response: ${response.statusCode}');
       
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('✅ Session created successfully');
         return UserSession.fromJson(data);
       }
       
-      print('Create Session Failed: ${response.body}');
+      print('❌ Session creation failed: ${response.body}');
       return null;
     } catch (e) {
       _handleError(e, 'createSession');
@@ -62,7 +103,7 @@ class MongoDBService {
       final response = await http.get(
         Uri.parse('$baseUrl/sessions/$userId/active'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -81,7 +122,7 @@ class MongoDBService {
       final response = await http.delete(
         Uri.parse('$baseUrl/sessions/$sessionId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -94,23 +135,25 @@ class MongoDBService {
   
   Future<DocumentModel?> createDocument(DocumentModel document) async {
     try {
-      print('Creating document: ${document.name}');
+      print('📝 Creating document: ${document.name}');
+      print('User ID: ${document.userId}');
       
       final response = await http.post(
         Uri.parse('$baseUrl/documents'),
         headers: _headers,
         body: jsonEncode(document.toJson()),
-      );
+      ).timeout(const Duration(seconds: 20)); // Longer timeout for document creation
 
       print('Create Document Response: ${response.statusCode}');
       print('Response Body: ${response.body}');
       
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        print('✅ Document created successfully');
         return DocumentModel.fromJson(data);
       }
       
-      print('Create Document Failed: ${response.body}');
+      print('❌ Create Document Failed: ${response.body}');
       return null;
     } catch (e) {
       _handleError(e, 'createDocument');
@@ -120,20 +163,22 @@ class MongoDBService {
 
   Future<List<DocumentModel>> getUserDocuments(String userId) async {
     try {
-      print('Fetching documents for user: $userId');
+      print('📚 Fetching documents for user: $userId');
       
       final response = await http.get(
         Uri.parse('$baseUrl/documents/user/$userId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('Get Documents Response: ${response.statusCode}');
       
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
+        print('✅ Found ${data.length} documents');
         return data.map((json) => DocumentModel.fromJson(json)).toList();
       }
       
+      print('⚠️ No documents found or error: ${response.body}');
       return [];
     } catch (e) {
       _handleError(e, 'getUserDocuments');
@@ -146,7 +191,7 @@ class MongoDBService {
       final response = await http.get(
         Uri.parse('$baseUrl/documents/$documentId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -166,7 +211,7 @@ class MongoDBService {
         Uri.parse('$baseUrl/documents/$documentId'),
         headers: _headers,
         body: jsonEncode(updates),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -180,7 +225,7 @@ class MongoDBService {
       final response = await http.delete(
         Uri.parse('$baseUrl/documents/$documentId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -197,7 +242,7 @@ class MongoDBService {
         Uri.parse('$baseUrl/tags'),
         headers: _headers,
         body: jsonEncode(tag.toJson()),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -216,7 +261,7 @@ class MongoDBService {
       final response = await http.get(
         Uri.parse('$baseUrl/tags/user/$userId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -235,7 +280,7 @@ class MongoDBService {
       final response = await http.delete(
         Uri.parse('$baseUrl/tags/$tagId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -248,7 +293,7 @@ class MongoDBService {
   
   Future<bool> updateSetting(String userId, String key, dynamic value) async {
     try {
-      print('Updating setting: $key = $value');
+      print('⚙️ Updating setting: $key = $value');
       
       final response = await http.post(
         Uri.parse('$baseUrl/settings'),
@@ -258,7 +303,7 @@ class MongoDBService {
           'settingKey': key,
           'value': value,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('Update Setting Response: ${response.statusCode}');
       return response.statusCode == 201 || response.statusCode == 200;
@@ -273,7 +318,7 @@ class MongoDBService {
       final response = await http.get(
         Uri.parse('$baseUrl/settings/$userId/$key'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -289,12 +334,12 @@ class MongoDBService {
 
   Future<Map<String, dynamic>> getAllSettings(String userId) async {
     try {
-      print('Fetching all settings for user: $userId');
+      print('⚙️ Fetching all settings for user: $userId');
       
       final response = await http.get(
         Uri.parse('$baseUrl/settings/user/$userId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 15));
 
       print('Get Settings Response: ${response.statusCode}');
       
@@ -313,27 +358,6 @@ class MongoDBService {
     } catch (e) {
       _handleError(e, 'getAllSettings');
       return {};
-    }
-  }
-
-  // ==================== CONNECTIVITY TEST ====================
-  
-  Future<bool> testConnection() async {
-    try {
-      print('Testing connection to: $baseUrl/health');
-      
-      final response = await http.get(
-        Uri.parse('$baseUrl/health'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 5));
-
-      print('Connection Test Response: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-      
-      return response.statusCode == 200;
-    } catch (e) {
-      _handleError(e, 'testConnection');
-      return false;
     }
   }
 }
