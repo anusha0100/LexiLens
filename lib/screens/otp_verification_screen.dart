@@ -104,8 +104,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         duration: Duration(seconds: 3),
       ),
     );
-
-    // Reset OTP fields
     setState(() {
       _otpDigits.fillRange(0, 4, '');
       _currentIndex = 0;
@@ -185,7 +183,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              // OTP Input boxes
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(
@@ -227,7 +224,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              // Resend OTP
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -256,7 +252,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ],
               ),
               const SizedBox(height: 40),
-              // Verify Button
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -293,7 +288,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 ),
               ),
               const Spacer(),
-              // Number pad 
               SizedBox(
                 width: 280,
                 child: GridView.count(

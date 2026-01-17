@@ -2,7 +2,7 @@ const express = require('express');
 const UserSession = require('../models/UserSession');
 const router = express.Router();
 
-// Create session
+
 router.post('/', async (req, res) => {
   try {
     const { userId, token, deviceInfo, ipAddress } = req.body;
@@ -23,7 +23,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get active session for user
+
 router.get('/:userId/active', async (req, res) => {
   try {
     const session = await UserSession.findOne({
@@ -42,7 +42,7 @@ router.get('/:userId/active', async (req, res) => {
   }
 });
 
-// Invalidate session
+
 router.delete('/:sessionId', async (req, res) => {
   try {
     await UserSession.findByIdAndUpdate(req.params.sessionId, {

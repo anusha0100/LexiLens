@@ -9,13 +9,9 @@ class AuthCheckScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
-    
-    // Check if user is already logged in
     if (authService.isLoggedIn) {
-      // User is logged in, go to home screen
       return const HomeScreen();
     } else {
-      // User is not logged in, show onboarding
       return const OnboardingScreen();
     }
   }

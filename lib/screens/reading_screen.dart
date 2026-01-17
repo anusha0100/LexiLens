@@ -1,4 +1,3 @@
-// lib/screens/reading_screen.dart (UPDATED FOR UPLOADED DOCUMENTS)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -22,11 +21,9 @@ class _ReadingScreenState extends State<ReadingScreen> {
     return BlocBuilder<AppBloc, AppState>(
       builder: (context, state) {
         final document = state.currentDocument;
-        
-        // Debug print
-        print('📖 Reading Screen - Current Document: ${document?.name}');
-        print('📝 Content available: ${document?.content.isNotEmpty ?? false}');
-        print('📝 Content length: ${document?.content.length ?? 0}');
+        print('Reading Screen - Current Document: ${document?.name}');
+        print('Content available: ${document?.content.isNotEmpty ?? false}');
+        print('Content length: ${document?.content.length ?? 0}');
         
         if (document == null) {
           return Scaffold(
@@ -110,7 +107,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
           ),
           body: Column(
             children: [
-              // Control Bar
               Container(
                 color: const Color(0xFFE8BFD5),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -146,7 +142,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
                   ],
                 ),
               ),
-              // Reading Content
               Expanded(
                 child: Container(
                   color: backgroundColor,
@@ -156,7 +151,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
                   ),
                 ),
               ),
-              // Media Controls
               Container(
                 color: const Color(0xFF1F1F39),
                 padding: const EdgeInsets.symmetric(vertical: 16),

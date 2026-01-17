@@ -1,4 +1,3 @@
-// lib/main.dart
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -14,28 +13,22 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // Initialize Firebase
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    print('✅ Firebase initialized successfully');
+    print('Firebase initialized successfully');
   } catch (e) {
-    print('❌ Firebase initialization error: $e');
+    print('Firebase initialization error: $e');
   }
-  
-  // Test backend connection
   await _testBackendConnection();
-  
   runApp(const LexiLens());
 }
 
 Future<void> _testBackendConnection() async {
-  final mongoService = MongoDBService();
-  print('🔧 Testing backend connection...');
-  print('📍 Backend URL: ${MongoDBService.baseUrl}');
+  print('Testing backend connection...');
+  print('Backend URL: ${MongoDBService.baseUrl}');
   
   try {
-    // Test health endpoint
     final response = await http.get(
       Uri.parse('${MongoDBService.baseUrl.replaceAll('/api', '')}/api/health'),
     ).timeout(
@@ -46,14 +39,14 @@ Future<void> _testBackendConnection() async {
     );
     
     if (response.statusCode == 200) {
-      print('✅ Backend connection successful');
-      print('📦 Response: ${response.body}');
+      print('Backend connection successful');
+      print('Response: ${response.body}');
     } else {
-      print('⚠️ Backend returned status: ${response.statusCode}');
+      print('Backend returned status: ${response.statusCode}');
     }
   } catch (e) {
-    print('❌ Backend connection failed: $e');
-    print('⚠️ The app will use mock data. Please check:');
+    print('Backend connection failed: $e');
+    print('he app will use mock data. Please check:');
     print('   1. Is the backend server running?');
     print('   2. Is the backend URL correct in mongodb_service.dart?');
     print('   3. Can the device reach the backend server?');

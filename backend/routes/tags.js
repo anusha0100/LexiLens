@@ -2,7 +2,7 @@ const express = require('express');
 const DocumentTag = require('../models/DocumentTag');
 const router = express.Router();
 
-// Create tag
+
 router.post('/', async (req, res) => {
   try {
     const { userId, tagName, color } = req.body;
@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get tags for user
+
 router.get('/user/:userId', async (req, res) => {
   try {
     const tags = await DocumentTag.find({ userId: req.params.userId });
@@ -30,7 +30,7 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// Update tag
+
 router.put('/:tagId', async (req, res) => {
   try {
     const updated = await DocumentTag.findByIdAndUpdate(
@@ -44,7 +44,7 @@ router.put('/:tagId', async (req, res) => {
   }
 });
 
-// Delete tag
+
 router.delete('/:tagId', async (req, res) => {
   try {
     await DocumentTag.findByIdAndDelete(req.params.tagId);

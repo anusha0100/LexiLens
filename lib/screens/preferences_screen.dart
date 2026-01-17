@@ -1,4 +1,3 @@
-// lib/screens/preferences_screen.dart
 import 'package:flutter/material.dart';
 import 'package:lexilens/services/auth_service.dart';
 import 'package:lexilens/services/mongodb_service.dart';
@@ -63,8 +62,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     try {
       final userId = _authService.getUserId();
       if (userId == null) throw Exception('User not logged in');
-
-      // Save all preferences
       await _mongoService.updateSetting(userId, 'pref_auto_save', _autoSave);
       await _mongoService.updateSetting(userId, 'pref_high_contrast', _highContrast);
       await _mongoService.updateSetting(userId, 'pref_word_highlight', _wordHighlight);
@@ -124,7 +121,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Reading Preferences
                   _buildSectionTitle('Reading Preferences'),
                   _buildSwitchTile(
                     'Word Highlighting',
@@ -154,8 +150,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 24),
-
-                  // Font Preferences
                   _buildSectionTitle('Font Preferences'),
                   _buildFontSelector(),
                   const SizedBox(height: 16),
@@ -164,8 +158,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 24),
-
-                  // General Preferences
                   _buildSectionTitle('General'),
                   _buildSwitchTile(
                     'Auto-Save Documents',
@@ -175,8 +167,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                   ),
 
                   const SizedBox(height: 40),
-
-                  // Save Button
                   SizedBox(
                     width: double.infinity,
                     height: 56,

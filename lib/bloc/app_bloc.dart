@@ -1,4 +1,3 @@
-// lib/bloc/app_bloc.dart (UPDATED LOAD DOCUMENTS)
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
@@ -41,7 +40,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       final userId = _authService.getUserId();
       if (userId != null) {
         try {
-          print('📚 Loading documents for user: $userId');
+          print('Loading documents for user: $userId');
           final mongoDocuments = await _mongoService.getUserDocuments(userId);
           
           final documents = mongoDocuments.map((doc) {
@@ -57,14 +56,14 @@ class AppBloc extends Bloc<AppEvent, AppState> {
             );
           }).toList();
 
-          print('✅ Loaded ${documents.length} documents');
+          print('Loaded ${documents.length} documents');
           emit(state.copyWith(recentDocuments: documents));
         } catch (e) {
-          print('❌ Error loading documents: $e');
+          print('Error loading documents: $e');
           _loadMockDocuments(emit);
         }
       } else {
-        print('⚠️ No user ID - loading mock documents');
+        print('No user ID - loading mock documents');
         _loadMockDocuments(emit);
       }
     });
@@ -84,7 +83,6 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('📖 OPENING DOCUMENT: ${event.documentPath}');
       
-      // Find document in current state
       final doc = state.recentDocuments.firstWhere(
         (d) => d.id == event.documentPath,
         orElse: () => Document(
@@ -202,7 +200,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
                    state.currentDocument?.content ?? 
                    "No text available to read.";
       
-      print('🔊 Starting TTS');
+      print('Starting TTS');
       print('Text length: ${text.length}');
       print('First 100 chars: ${text.substring(0, text.length > 100 ? 100 : text.length)}');
       
@@ -289,7 +287,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     });
 
     on<SaveFilterSettings>((event, emit) async {
-      // Filter settings are auto-saved on change
+      
     });
 
     on<LoadUserSettings>((event, emit) async {
@@ -297,7 +295,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     });
 
     on<UploadPDF>((event, emit) {
-      // Handled in UploadPDFScreen
+      
     });
   }
 

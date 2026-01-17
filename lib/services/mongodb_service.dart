@@ -1,4 +1,3 @@
-// lib/services/mongodb_service.dart (VERIFY BACKEND CONNECTION)
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:lexilens/models/document_model.dart';
@@ -36,7 +35,6 @@ class MongoDBService {
     }
   }
 
-  // DOCUMENT OPERATIONS
   Future<DocumentModel?> createDocument(DocumentModel document) async {
     try {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
@@ -74,7 +72,7 @@ class MongoDBService {
       
       return null;
     } catch (e) {
-      print('❌ Create Document Error: $e');
+      print('Create Document Error: $e');
       return null;
     }
   }
@@ -82,7 +80,7 @@ class MongoDBService {
   Future<List<DocumentModel>> getUserDocuments(String userId) async {
     try {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('📚 FETCHING DOCUMENTS FOR USER: $userId');
+      print('FETCHING DOCUMENTS FOR USER: $userId');
       
       final response = await http.get(
         Uri.parse('$baseUrl/documents/user/$userId'),
@@ -108,7 +106,7 @@ class MongoDBService {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return [];
     } catch (e) {
-      print('❌ Get Documents Error: $e');
+      print('Get Documents Error: $e');
       return [];
     }
   }
@@ -138,7 +136,7 @@ class MongoDBService {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return null;
     } catch (e) {
-      print('❌ Get Document Error: $e');
+      print('Get Document Error: $e');
       return null;
     }
   }
@@ -152,14 +150,14 @@ class MongoDBService {
       ).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
-      print('❌ Update Document Error: $e');
+      print('Update Document Error: $e');
       return false;
     }
   }
 
   Future<bool> deleteDocument(String documentId) async {
     try {
-      print('🗑️ Deleting document: $documentId');
+      print('Deleting document: $documentId');
       final response = await http.delete(
         Uri.parse('$baseUrl/documents/$documentId'),
         headers: _headers,
@@ -168,12 +166,11 @@ class MongoDBService {
       print('Delete Response: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
-      print('❌ Delete Document Error: $e');
+      print('Delete Document Error: $e');
       return false;
     }
   }
 
-  // SESSION OPERATIONS
   Future<UserSession?> createSession(UserSession session) async {
     try {
       final response = await http.post(
@@ -188,7 +185,7 @@ class MongoDBService {
       }
       return null;
     } catch (e) {
-      print('❌ Create Session Error: $e');
+      print('Create Session Error: $e');
       return null;
     }
   }

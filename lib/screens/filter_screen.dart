@@ -42,7 +42,6 @@ class FilterScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Background Color Section
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -89,7 +88,6 @@ class FilterScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      // Text Color Section
                       Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
@@ -136,7 +134,6 @@ class FilterScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      // Color Coded Parts of Speech
                       const Text(
                         'Color Coded Parts of Speech',
                         style: TextStyle(
@@ -209,7 +206,6 @@ class FilterScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              // Save Button
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: SizedBox(

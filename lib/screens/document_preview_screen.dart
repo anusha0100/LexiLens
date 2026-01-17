@@ -417,8 +417,6 @@ class DocumentBorderPainter extends CustomPainter {
 
     canvas.drawPath(path, fillPaint);
     canvas.drawPath(path, paint);
-
-    // Grid lines
     final gridPaint = Paint()
       ..color = Colors.white.withOpacity(0.3)
       ..strokeWidth = 1;

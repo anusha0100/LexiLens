@@ -2,7 +2,7 @@ const express = require('express');
 const AppSetting = require('../models/AppSetting');
 const router = express.Router();
 
-// Save/Update setting
+
 router.post('/', async (req, res) => {
   try {
     const { userId, settingKey, value } = req.body;
@@ -28,7 +28,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get setting
+
 router.get('/:userId/:settingKey', async (req, res) => {
   try {
     const setting = await AppSetting.findOne({
@@ -42,7 +42,7 @@ router.get('/:userId/:settingKey', async (req, res) => {
   }
 });
 
-// Get all settings for user
+
 router.get('/user/:userId', async (req, res) => {
   try {
     const settings = await AppSetting.find({ userId: req.params.userId });

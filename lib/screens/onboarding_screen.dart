@@ -144,7 +144,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 ),
                               ),
                             ),
-                          // Show Get Started button for welcome screen
                           if (state.currentPage == state.totalPages - 1)
                             SizedBox(
                               width: double.infinity,

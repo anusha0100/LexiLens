@@ -1,4 +1,3 @@
-// lib/screens/settings_screen.dart (UPDATED)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -28,7 +27,6 @@ class SettingsScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Profile Header Section
               Container(
                 width: double.infinity,
                 decoration: const BoxDecoration(

@@ -2,7 +2,6 @@ const express = require('express');
 const Document = require('../models/Document');
 const router = express.Router();
 
-// Upload/Create document
 router.post('/', async (req, res) => {
   try {
     const { userId, fileName, filePath, documentText } = req.body;
@@ -22,7 +21,6 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get all documents for a user
 router.get('/user/:userId', async (req, res) => {
   try {
     const documents = await Document.find({ userId: req.params.userId })
@@ -33,7 +31,7 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// Get single document
+
 router.get('/:docId', async (req, res) => {
   try {
     const document = await Document.findById(req.params.docId);
@@ -46,7 +44,7 @@ router.get('/:docId', async (req, res) => {
   }
 });
 
-// Update document
+
 router.put('/:docId', async (req, res) => {
   try {
     const updated = await Document.findByIdAndUpdate(
@@ -60,7 +58,7 @@ router.put('/:docId', async (req, res) => {
   }
 });
 
-// Delete document
+
 router.delete('/:docId', async (req, res) => {
   try {
     await Document.findByIdAndDelete(req.params.docId);

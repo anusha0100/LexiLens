@@ -2,7 +2,7 @@ const express = require('express');
 const WordDictionary = require('../models/WordDictionary');
 const router = express.Router();
 
-// Get word definition
+
 router.get('/:word', async (req, res) => {
   try {
     const word = await WordDictionary.findOne({
@@ -19,7 +19,7 @@ router.get('/:word', async (req, res) => {
   }
 });
 
-// Search words
+
 router.get('/search/:query', async (req, res) => {
   try {
     const words = await WordDictionary.find({
@@ -32,7 +32,7 @@ router.get('/search/:query', async (req, res) => {
   }
 });
 
-// Add word to dictionary
+
 router.post('/', async (req, res) => {
   try {
     const wordData = new WordDictionary(req.body);

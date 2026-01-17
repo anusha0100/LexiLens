@@ -15,8 +15,6 @@ class _DocumentDebugScreenState extends State<DocumentDebugScreen> {
   final _authService = AuthService();
   List<Map<String, dynamic>> _documents = [];
   bool _isLoading = false;
-  String? _selectedDocId;
-  String? _selectedDocContent;
 
   @override
   void initState() {

@@ -1,4 +1,3 @@
-// lib/screens/profile_screen.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
@@ -127,8 +126,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final userId = _authService.getUserId();
       if (userId == null) throw Exception('User not logged in');
-
-      // Save profile data
       await _mongoService.updateSetting(
           userId, 'user_name', _nameController.text);
       await _mongoService.updateSetting(

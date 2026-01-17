@@ -1,4 +1,3 @@
-// lib/screens/upload_pdf_screen.dart (COMPLETE FLOW)
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -37,8 +36,6 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         setState(() {
           _selectedFiles = result.files;
         });
-        
-        // Extract text from files immediately
         for (var file in _selectedFiles) {
           if (file.extension?.toLowerCase() == 'pdf') {
             await _extractTextFromPDF(file);
@@ -93,10 +90,10 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
       
       document.dispose();
       
-      print('✅ Extracted ${extractedText.length} characters from ${file.name}');
+      print('Extracted ${extractedText.length} characters from ${file.name}');
       
     } catch (e) {
-      print('❌ PDF extraction error: $e');
+      print('PDF extraction error: $e');
       setState(() {
         _extractedTexts[file.name] = 'Error: Could not extract text from PDF';
         _extractionStatus[file.name] = false;
@@ -121,10 +118,10 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         _extractionStatus[file.name] = false;
       });
       
-      print('✅ Read ${content.length} characters from ${file.name}');
+      print('Read ${content.length} characters from ${file.name}');
       
     } catch (e) {
-      print('❌ TXT read error: $e');
+      print('TXT read error: $e');
       setState(() {
         _extractedTexts[file.name] = 'Error: Could not read text file';
         _extractionStatus[file.name] = false;
@@ -167,7 +164,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
           final content = _extractedTexts[file.name] ?? '';
           
           if (content.isEmpty || content.contains('Error') || content.contains('No text')) {
-            print('⚠️ Skipping ${file.name} - no valid content');
+            print('Skipping ${file.name} - no valid content');
             failCount++;
             continue;
           }
@@ -182,21 +179,21 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
             isFavorite: false,
           );
 
-          print('📤 Uploading ${file.name}...');
-          print('📝 Content length: ${content.length} characters');
-          print('📝 First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
+          print('Uploading ${file.name}...');
+          print('Content length: ${content.length} characters');
+          print('First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
           
           final savedDoc = await _mongoService.createDocument(document);
           
           if (savedDoc != null) {
             successCount++;
-            print('✅ Successfully uploaded ${file.name}');
+            print('Successfully uploaded ${file.name}');
           } else {
             failCount++;
-            print('❌ Failed to save ${file.name} to database');
+            print('Failed to save ${file.name} to database');
           }
         } catch (e) {
-          print('❌ Error uploading ${file.name}: $e');
+          print('Error uploading ${file.name}: $e');
           failCount++;
         }
       }
@@ -229,13 +226,8 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         );
 
         if (successCount > 0) {
-          // Reload documents
           context.read<AppBloc>().add(LoadDocuments());
-          
-          // Wait a bit for the reload
           await Future.delayed(const Duration(milliseconds: 500));
-          
-          // Clear and go back
           setState(() {
             _selectedFiles.clear();
             _extractedTexts.clear();

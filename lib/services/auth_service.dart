@@ -18,19 +18,12 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => currentUser != null;
-
-  // Extract username from email
   String extractUsername(String email) {
     try {
-      // Get the part before @
       final parts = email.split('@');
       if (parts.isNotEmpty) {
         String username = parts[0];
-        
-        // Remove dots and underscores, capitalize first letter
         username = username.replaceAll('.', ' ').replaceAll('_', ' ');
-        
-        // Capitalize each word
         final words = username.split(' ');
         final capitalizedWords = words.map((word) {
           if (word.isEmpty) return word;
@@ -44,8 +37,6 @@ class AuthService {
       return 'User';
     }
   }
-
-  // Get display name from current user
   String getUserDisplayName() {
     if (currentUser?.email != null) {
       return extractUsername(currentUser!.email!);
@@ -53,7 +44,6 @@ class AuthService {
     return 'User';
   }
 
-  // Get device info for session tracking
   Future<String> _getDeviceInfo() async {
     final deviceInfo = DeviceInfoPlugin();
     try {
@@ -70,7 +60,6 @@ class AuthService {
     }
   }
 
-  // Create MongoDB session after successful auth
   Future<void> _createSession(String userId, String token) async {
     final deviceInfo = await _getDeviceInfo();
     
@@ -88,7 +77,6 @@ class AuthService {
     _mongoService.setAuthToken(token);
   }
 
-  // Save user profile to MongoDB
   Future<void> _saveUserProfile(String userId, String email) async {
     try {
       final username = extractUsername(email);
@@ -121,7 +109,6 @@ class AuthService {
     }
   }
 
-  // Phone verification
   Future<Map<String, dynamic>> verifyPhoneNumber({
     required String phoneNumber,
   }) async {
@@ -141,7 +128,6 @@ class AuthService {
     }
   }
 
-  // Verify OTP and complete registration
   Future<Map<String, dynamic>> verifyOTP({
     required String otp,
     required String verificationId,
@@ -165,15 +151,9 @@ class AuthService {
         email: _pendingEmail!,
         password: _pendingPassword!,
       );
-
-      // Get Firebase token
       final token = await userCredential.user?.getIdToken();
-      
       if (token != null && userCredential.user != null) {
-        // Create MongoDB session
         await _createSession(userCredential.user!.uid, token);
-        
-        // Save user profile
         await _saveUserProfile(userCredential.user!.uid, _pendingEmail!);
       }
 
@@ -215,7 +195,6 @@ class AuthService {
     }
   }
 
-  // Login with email and password
   Future<Map<String, dynamic>> loginWithEmail({
     required String email,
     required String password,
@@ -225,15 +204,10 @@ class AuthService {
         email: email,
         password: password,
       );
-      
-      // Get Firebase token
       final token = await userCredential.user?.getIdToken();
       
       if (token != null && userCredential.user != null) {
-        // Create or update MongoDB session
         await _createSession(userCredential.user!.uid, token);
-        
-        // Update user profile if not exists
         await _saveUserProfile(userCredential.user!.uid, email);
       }
       
@@ -274,22 +248,16 @@ class AuthService {
     }
   }
 
-  // Logout
+  
   Future<void> logout() async {
     try {
-      // Get current session from MongoDB
       if (currentUser != null) {
         final session = await _mongoService.getActiveSession(currentUser!.uid);
         if (session != null && session.id != null) {
-          // Invalidate session in MongoDB
           await _mongoService.invalidateSession(session.id!);
         }
       }
-
-      // Sign out from Firebase
       await _auth.signOut();
-      
-      // Clear local data
       _pendingEmail = null;
       _pendingPassword = null;
       _verificationId = null;
@@ -299,21 +267,20 @@ class AuthService {
     }
   }
 
-  // Get user email
+  
   String? getUserEmail() {
     return currentUser?.email;
   }
 
-  // Get user ID
+  
   String? getUserId() {
     return currentUser?.uid;
   }
 
-  // Get username
+  
   Future<String> getUsername() async {
     if (currentUser?.email != null) {
       try {
-        // Try to get from MongoDB first
         final userId = currentUser!.uid;
         final savedName = await _mongoService.getSetting(userId, 'user_name');
         if (savedName != null && savedName.toString().isNotEmpty) {
@@ -322,14 +289,11 @@ class AuthService {
       } catch (e) {
         print('Error getting saved username: $e');
       }
-      
-      // Fall back to extracting from email
       return extractUsername(currentUser!.email!);
     }
     return 'User';
   }
 
-  // Reset password
   Future<Map<String, dynamic>> resetPassword({
     required String email,
   }) async {
@@ -347,7 +311,7 @@ class AuthService {
     }
   }
 
-  // Refresh session
+  
   Future<void> refreshSession() async {
     try {
       if (currentUser != null) {

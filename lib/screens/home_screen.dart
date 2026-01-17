@@ -1,4 +1,6 @@
 // lib/screens/home_screen.dart
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -22,7 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Load user profile and documents
     context.read<AppBloc>().add(LoadUserProfile());
     context.read<AppBloc>().add(LoadDocuments());
     context.read<AppBloc>().add(LoadUserSettings());
@@ -68,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Welcome Section with Username
                 Row(
                   children: [
                     Container(
@@ -120,8 +120,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 30),
-
-                // Tools Section
                 const Text(
                   'Tools',
                   style: TextStyle(
@@ -271,8 +269,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
-                // Documents List or Empty State
                 state.recentDocuments.isEmpty
                     ? _buildEmptyState(context)
                     : ListView.builder(

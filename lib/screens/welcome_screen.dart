@@ -18,7 +18,7 @@ class WelcomeScreen extends StatelessWidget {
           children: [
             const SizedBox(height: 50),
             const Text(
-              'Hi Archita, Welcome\nto LexiLens',
+              'Hi, Welcome\nto LexiLens',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 28,

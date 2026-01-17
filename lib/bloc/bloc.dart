@@ -40,7 +40,7 @@ class OnboardingBloc extends Bloc<OnboardingEvent, OnboardingState> {
     });
 
     on<CompleteOnboarding>((event, emit) {
-      // Main app navigation
+      
     });
   }
 }

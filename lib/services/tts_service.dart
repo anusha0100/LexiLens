@@ -12,7 +12,6 @@ class TTSService {
   int _currentWordIndex = 0;
   List<String> _words = [];
   
-  // Callbacks
   Function(int)? onWordHighlight;
   Function()? onComplete;
   Function()? onStart;
@@ -26,16 +25,13 @@ class TTSService {
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setVolume(1.0);
     await _flutterTts.setPitch(1.0);
-
-    // Set up handlers
     _flutterTts.setStartHandler(() {
       _isPlaying = true;
       _isPaused = false;
       _currentWordIndex = 0;
       onStart?.call();
-      onWordHighlight?.call(0); // Highlight first word immediately
+      onWordHighlight?.call(0); 
     });
-
     _flutterTts.setCompletionHandler(() {
       _isPlaying = false;
       _isPaused = false;

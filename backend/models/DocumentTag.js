@@ -20,7 +20,6 @@ const tagSchema = new mongoose.Schema({
   }
 });
 
-// Unique index - one user can't have duplicate tags
 tagSchema.index({ userId: 1, tagName: 1 }, { unique: true });
 
 module.exports = mongoose.model('DocumentTag', tagSchema);

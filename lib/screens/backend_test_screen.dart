@@ -1,4 +1,3 @@
-// lib/screens/backend_test_screen.dart (IMPROVED VERSION)
 import 'package:flutter/material.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/services/auth_service.dart';
@@ -37,9 +36,9 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
     });
     
     if (connected) {
-      _addLog('✅ Backend connected successfully!');
+      _addLog('Backend connected successfully!');
     } else {
-      _addLog('❌ Backend connection failed!', isError: true);
+      _addLog('Backend connection failed!', isError: true);
       _addLog('Please check your backend URL in mongodb_service.dart', isError: true);
     }
   }
@@ -333,7 +332,6 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
       ),
       body: Column(
         children: [
-          // Connection Status
           Container(
             padding: const EdgeInsets.all(16),
             color: _isConnected ? Colors.green.shade50 : Colors.red.shade50,
@@ -375,8 +373,6 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
               ],
             ),
           ),
-          
-          // Test Control Panel
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.grey[100],
@@ -418,8 +414,6 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
               ],
             ),
           ),
-          
-          // Log Display
           Expanded(
             child: Container(
               color: Colors.black,
@@ -456,8 +450,6 @@ class _BackendTestScreenState extends State<BackendTestScreen> {
                     ),
             ),
           ),
-          
-          // Status Bar
           Container(
             padding: const EdgeInsets.all(12),
             color: Colors.grey[200],

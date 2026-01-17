@@ -7,7 +7,6 @@ import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/screens/reading_screen.dart';
 import 'package:lexilens/screens/upload_pdf_screen.dart';
 import 'package:lexilens/services/mongodb_service.dart';
-import 'package:lexilens/services/auth_service.dart';
 
 class DocumentsScreen extends StatelessWidget {
   const DocumentsScreen({super.key});
@@ -86,7 +85,6 @@ class DocumentsScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Document count
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 child: Row(
@@ -102,7 +100,6 @@ class DocumentsScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              // Documents list
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -112,8 +109,8 @@ class DocumentsScreen extends StatelessWidget {
                     return _DocumentCard(
                       document: doc,
                       onTap: () {
-                        print('📖 Opening document: ${doc.name}');
-                        print('📝 Content length: ${doc.content.length}');
+                        print('Opening document: ${doc.name}');
+                        print('Content length: ${doc.content.length}');
                         context.read<AppBloc>().add(OpenDocument(doc.id));
                         Navigator.push(
                           context,
@@ -167,7 +164,6 @@ class DocumentsScreen extends StatelessWidget {
                         );
 
                         if (confirmed == true && context.mounted) {
-                          // Show loading
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Deleting document...'),
@@ -175,16 +171,12 @@ class DocumentsScreen extends StatelessWidget {
                               backgroundColor: Color(0xFFB789DA),
                             ),
                           );
-
-                          // Delete from MongoDB
                           final mongoService = MongoDBService();
                           final deleted = await mongoService.deleteDocument(doc.id);
 
                           if (context.mounted) {
                             if (deleted) {
-                              // Update local state
                               context.read<AppBloc>().add(DeleteDocument(doc.id));
-                              
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Document deleted successfully'),
