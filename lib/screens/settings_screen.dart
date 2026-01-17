@@ -11,6 +11,7 @@ import 'package:lexilens/screens/profile_screen.dart';
 import 'package:lexilens/screens/auth_landing_screen.dart';
 import 'package:lexilens/screens/backend_test_screen.dart';
 import 'package:lexilens/services/auth_service.dart';
+import 'package:lexilens/screens/document_debug_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -18,13 +19,13 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
-    
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: BlocBuilder<AppBloc, AppState>(
         builder: (context, state) {
           final userEmail = authService.getUserEmail() ?? 'user@example.com';
-          
+
           return Column(
             children: [
               // Profile Header Section
@@ -63,7 +64,7 @@ class SettingsScreen extends StatelessWidget {
                                     radius: 37,
                                     backgroundColor: Colors.white,
                                     child: Text(
-                                      state.userName.isNotEmpty 
+                                      state.userName.isNotEmpty
                                           ? state.userName[0].toUpperCase()
                                           : 'U',
                                       style: const TextStyle(
@@ -218,6 +219,19 @@ class SettingsScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const HelpScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
+                      context: context,
+                      icon: Icons.bug_report,
+                      title: 'Document Debug',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DocumentDebugScreen(),
                           ),
                         );
                       },
@@ -422,7 +436,7 @@ class SettingsScreen extends StatelessWidget {
 
   void _showLogoutDialog(BuildContext context) {
     final authService = AuthService();
-    
+
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -457,7 +471,7 @@ class SettingsScreen extends StatelessWidget {
             TextButton(
               onPressed: () async {
                 Navigator.pop(dialogContext);
-                
+
                 showDialog(
                   context: context,
                   barrierDismissible: false,
@@ -472,7 +486,7 @@ class SettingsScreen extends StatelessWidget {
 
                 if (context.mounted) {
                   Navigator.pop(context);
-                  
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Logged out successfully'),

@@ -1,4 +1,4 @@
-// lib/services/mongodb_service.dart (RENDER DEPLOYMENT FIX)
+// lib/services/mongodb_service.dart (VERIFY BACKEND CONNECTION)
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:lexilens/models/document_model.dart';
@@ -10,9 +10,7 @@ class MongoDBService {
   factory MongoDBService() => _instance;
   MongoDBService._internal();
 
-  // ✅ YOUR RENDER DEPLOYMENT URL
   static const String baseUrl = 'https://lexilens-backend-yyix.onrender.com/api';
-
   String _authToken = '';
 
   void setAuthToken(String token) {
@@ -25,75 +23,172 @@ class MongoDBService {
     if (_authToken.isNotEmpty) 'Authorization': 'Bearer $_authToken',
   };
 
-  void _handleError(dynamic error, String operation) {
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    print('❌ MongoDB Service Error');
-    print('Operation: $operation');
-    print('Error: $error');
-    print('BaseURL: $baseUrl');
-    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  }
-
-  // ==================== CONNECTIVITY TEST ====================
-  
   Future<bool> testConnection() async {
     try {
-      print('🔍 Testing connection to: $baseUrl/health');
-      
       final response = await http.get(
         Uri.parse('$baseUrl/health'),
         headers: _headers,
-      ).timeout(
-        const Duration(seconds: 15), // Longer timeout for Render cold starts
-        onTimeout: () {
-          throw Exception('Connection timeout - Server might be starting up (Render cold start)');
-        },
-      );
-
-      print('📡 Response Status: ${response.statusCode}');
-      print('📄 Response Body: ${response.body}');
-      
-      if (response.statusCode == 200) {
-        print('✅ Backend connection successful!');
-        return true;
-      } else {
-        print('⚠️ Unexpected status code: ${response.statusCode}');
-        return false;
-      }
+      ).timeout(const Duration(seconds: 15));
+      return response.statusCode == 200;
     } catch (e) {
-      print('❌ Connection test failed:');
-      print('   Error: $e');
-      print('   URL: $baseUrl/health');
-      print('   Note: Render free tier has cold starts - may take 30s on first request');
-      _handleError(e, 'testConnection');
+      print('❌ Connection test failed: $e');
       return false;
     }
   }
 
-  // ==================== SESSION OPERATIONS ====================
-  
+  // DOCUMENT OPERATIONS
+  Future<DocumentModel?> createDocument(DocumentModel document) async {
+    try {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📤 CREATING DOCUMENT');
+      print('Name: ${document.name}');
+      print('Content Length: ${document.content.length}');
+      print('First 200 chars: ${document.content.substring(0, document.content.length > 200 ? 200 : document.content.length)}');
+      
+      final payload = {
+        'userId': document.userId,
+        'fileName': document.name,
+        'documentText': document.content,
+        'filePath': document.filePath ?? '',
+        'uploadedDate': document.uploadedDate.toIso8601String(),
+        'tags': document.tags,
+        'isFavorite': document.isFavorite,
+      };
+      
+      print('Payload: ${jsonEncode(payload)}');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/documents'),
+        headers: _headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 20));
+
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return DocumentModel.fromJson(data);
+      }
+      
+      return null;
+    } catch (e) {
+      print('❌ Create Document Error: $e');
+      return null;
+    }
+  }
+
+  Future<List<DocumentModel>> getUserDocuments(String userId) async {
+    try {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📚 FETCHING DOCUMENTS FOR USER: $userId');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/documents/user/$userId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+
+      print('Response Status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        print('Found ${data.length} documents');
+        
+        final documents = data.map((json) {
+          print('Document: ${json['fileName']}');
+          print('Content Length: ${json['documentText']?.toString().length ?? 0}');
+          return DocumentModel.fromJson(json);
+        }).toList();
+        
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        return documents;
+      }
+      
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      return [];
+    } catch (e) {
+      print('❌ Get Documents Error: $e');
+      return [];
+    }
+  }
+
+  Future<DocumentModel?> getDocument(String documentId) async {
+    try {
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📖 FETCHING SINGLE DOCUMENT: $documentId');
+      
+      final response = await http.get(
+        Uri.parse('$baseUrl/documents/$documentId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+
+      print('Response Status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Document: ${data['fileName']}');
+        print('Content Length: ${data['documentText']?.toString().length ?? 0}');
+        print('First 200 chars: ${data['documentText']?.toString().substring(0, (data['documentText']?.toString().length ?? 0) > 200 ? 200 : (data['documentText']?.toString().length ?? 0))}');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        return DocumentModel.fromJson(data);
+      }
+      
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      return null;
+    } catch (e) {
+      print('❌ Get Document Error: $e');
+      return null;
+    }
+  }
+
+  Future<bool> updateDocument(String documentId, Map<String, dynamic> updates) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/documents/$documentId'),
+        headers: _headers,
+        body: jsonEncode(updates),
+      ).timeout(const Duration(seconds: 15));
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Update Document Error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteDocument(String documentId) async {
+    try {
+      print('🗑️ Deleting document: $documentId');
+      final response = await http.delete(
+        Uri.parse('$baseUrl/documents/$documentId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+      
+      print('Delete Response: ${response.statusCode}');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Delete Document Error: $e');
+      return false;
+    }
+  }
+
+  // SESSION OPERATIONS
   Future<UserSession?> createSession(UserSession session) async {
     try {
-      print('📝 Creating session for user: ${session.userId}');
-      
       final response = await http.post(
         Uri.parse('$baseUrl/sessions'),
         headers: _headers,
         body: jsonEncode(session.toJson()),
       ).timeout(const Duration(seconds: 15));
 
-      print('Session Response: ${response.statusCode}');
-      
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        print('✅ Session created successfully');
         return UserSession.fromJson(data);
       }
-      
-      print('❌ Session creation failed: ${response.body}');
       return null;
     } catch (e) {
-      _handleError(e, 'createSession');
+      print('❌ Create Session Error: $e');
       return null;
     }
   }
@@ -109,10 +204,8 @@ class MongoDBService {
         final data = jsonDecode(response.body);
         return UserSession.fromJson(data);
       }
-      
       return null;
     } catch (e) {
-      _handleError(e, 'getActiveSession');
       return null;
     }
   }
@@ -123,119 +216,13 @@ class MongoDBService {
         Uri.parse('$baseUrl/sessions/$sessionId'),
         headers: _headers,
       ).timeout(const Duration(seconds: 15));
-
       return response.statusCode == 200;
     } catch (e) {
-      _handleError(e, 'invalidateSession');
       return false;
     }
   }
 
-  // ==================== DOCUMENT OPERATIONS ====================
-  
-  Future<DocumentModel?> createDocument(DocumentModel document) async {
-    try {
-      print('📝 Creating document: ${document.name}');
-      print('User ID: ${document.userId}');
-      
-      final response = await http.post(
-        Uri.parse('$baseUrl/documents'),
-        headers: _headers,
-        body: jsonEncode(document.toJson()),
-      ).timeout(const Duration(seconds: 20)); // Longer timeout for document creation
-
-      print('Create Document Response: ${response.statusCode}');
-      print('Response Body: ${response.body}');
-      
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        print('✅ Document created successfully');
-        return DocumentModel.fromJson(data);
-      }
-      
-      print('❌ Create Document Failed: ${response.body}');
-      return null;
-    } catch (e) {
-      _handleError(e, 'createDocument');
-      return null;
-    }
-  }
-
-  Future<List<DocumentModel>> getUserDocuments(String userId) async {
-    try {
-      print('📚 Fetching documents for user: $userId');
-      
-      final response = await http.get(
-        Uri.parse('$baseUrl/documents/user/$userId'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 15));
-
-      print('Get Documents Response: ${response.statusCode}');
-      
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        print('✅ Found ${data.length} documents');
-        return data.map((json) => DocumentModel.fromJson(json)).toList();
-      }
-      
-      print('⚠️ No documents found or error: ${response.body}');
-      return [];
-    } catch (e) {
-      _handleError(e, 'getUserDocuments');
-      return [];
-    }
-  }
-
-  Future<DocumentModel?> getDocument(String documentId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/documents/$documentId'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return DocumentModel.fromJson(data);
-      }
-      
-      return null;
-    } catch (e) {
-      _handleError(e, 'getDocument');
-      return null;
-    }
-  }
-
-  Future<bool> updateDocument(String documentId, Map<String, dynamic> updates) async {
-    try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/documents/$documentId'),
-        headers: _headers,
-        body: jsonEncode(updates),
-      ).timeout(const Duration(seconds: 15));
-
-      return response.statusCode == 200;
-    } catch (e) {
-      _handleError(e, 'updateDocument');
-      return false;
-    }
-  }
-
-  Future<bool> deleteDocument(String documentId) async {
-    try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/documents/$documentId'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 15));
-
-      return response.statusCode == 200;
-    } catch (e) {
-      _handleError(e, 'deleteDocument');
-      return false;
-    }
-  }
-
-  // ==================== TAG OPERATIONS ====================
-  
+  // TAG OPERATIONS
   Future<DocumentTag?> createTag(DocumentTag tag) async {
     try {
       final response = await http.post(
@@ -248,10 +235,8 @@ class MongoDBService {
         final data = jsonDecode(response.body);
         return DocumentTag.fromJson(data);
       }
-      
       return null;
     } catch (e) {
-      _handleError(e, 'createTag');
       return null;
     }
   }
@@ -267,10 +252,8 @@ class MongoDBService {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => DocumentTag.fromJson(json)).toList();
       }
-      
       return [];
     } catch (e) {
-      _handleError(e, 'getUserTags');
       return [];
     }
   }
@@ -281,20 +264,15 @@ class MongoDBService {
         Uri.parse('$baseUrl/tags/$tagId'),
         headers: _headers,
       ).timeout(const Duration(seconds: 15));
-
       return response.statusCode == 200;
     } catch (e) {
-      _handleError(e, 'deleteTag');
       return false;
     }
   }
 
-  // ==================== SETTINGS OPERATIONS ====================
-  
+  // SETTINGS OPERATIONS
   Future<bool> updateSetting(String userId, String key, dynamic value) async {
     try {
-      print('⚙️ Updating setting: $key = $value');
-      
       final response = await http.post(
         Uri.parse('$baseUrl/settings'),
         headers: _headers,
@@ -304,11 +282,8 @@ class MongoDBService {
           'value': value,
         }),
       ).timeout(const Duration(seconds: 15));
-
-      print('Update Setting Response: ${response.statusCode}');
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
-      _handleError(e, 'updateSetting');
       return false;
     }
   }
@@ -324,25 +299,19 @@ class MongoDBService {
         final data = jsonDecode(response.body);
         return data['value'];
       }
-      
       return null;
     } catch (e) {
-      _handleError(e, 'getSetting');
       return null;
     }
   }
 
   Future<Map<String, dynamic>> getAllSettings(String userId) async {
     try {
-      print('⚙️ Fetching all settings for user: $userId');
-      
       final response = await http.get(
         Uri.parse('$baseUrl/settings/user/$userId'),
         headers: _headers,
       ).timeout(const Duration(seconds: 15));
 
-      print('Get Settings Response: ${response.statusCode}');
-      
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         final Map<String, dynamic> settings = {};
@@ -353,11 +322,10 @@ class MongoDBService {
         
         return settings;
       }
-      
       return {};
     } catch (e) {
-      _handleError(e, 'getAllSettings');
       return {};
     }
   }
 }
+

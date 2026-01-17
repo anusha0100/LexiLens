@@ -1,4 +1,4 @@
-// lib/bloc/app_bloc.dart
+// lib/bloc/app_bloc.dart (UPDATED LOAD DOCUMENTS)
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
@@ -41,21 +41,30 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       final userId = _authService.getUserId();
       if (userId != null) {
         try {
-          final documents = await _mongoService.getUserDocuments(userId);
-          final recentDocs = documents.map((doc) => Document(
-            id: doc.id ?? '',
-            name: doc.name,
-            previewPath: 'assets/doc_preview1.png',
-            uploadedDate: doc.uploadedDate,
-            content: doc.content,
-          )).toList();
+          print('📚 Loading documents for user: $userId');
+          final mongoDocuments = await _mongoService.getUserDocuments(userId);
+          
+          final documents = mongoDocuments.map((doc) {
+            print('Converting document: ${doc.name}');
+            print('Content length: ${doc.content.length}');
+            
+            return Document(
+              id: doc.id ?? '',
+              name: doc.name,
+              previewPath: 'assets/doc_preview1.png',
+              uploadedDate: doc.uploadedDate,
+              content: doc.content,
+            );
+          }).toList();
 
-          emit(state.copyWith(recentDocuments: recentDocs));
+          print('✅ Loaded ${documents.length} documents');
+          emit(state.copyWith(recentDocuments: documents));
         } catch (e) {
-          print('Error loading documents: $e');
+          print('❌ Error loading documents: $e');
           _loadMockDocuments(emit);
         }
       } else {
+        print('⚠️ No user ID - loading mock documents');
         _loadMockDocuments(emit);
       }
     });
@@ -72,48 +81,26 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     on<OpenDocument>((event, emit) async {
       await _ttsService.stop();
       
-      final userId = _authService.getUserId();
-      if (userId != null) {
-        try {
-          final mongoDoc = await _mongoService.getDocument(event.documentPath);
-          if (mongoDoc != null) {
-            await _mongoService.updateDocument(
-              event.documentPath,
-              {'lastReadDate': DateTime.now().toIso8601String()},
-            );
-            
-            final doc = Document(
-              id: mongoDoc.id ?? '',
-              name: mongoDoc.name,
-              previewPath: 'assets/doc_preview1.png',
-              uploadedDate: mongoDoc.uploadedDate,
-              content: mongoDoc.content,
-            );
-            
-            emit(state.copyWith(
-              currentDocument: doc,
-              readingState: ReadingState.idle,
-              currentWordIndex: 0,
-            ));
-            return;
-          }
-        } catch (e) {
-          print('Error opening document from MongoDB: $e');
-        }
-      }
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      print('📖 OPENING DOCUMENT: ${event.documentPath}');
       
+      // Find document in current state
       final doc = state.recentDocuments.firstWhere(
         (d) => d.id == event.documentPath,
-        orElse: () => state.recentDocuments.isNotEmpty 
-            ? state.recentDocuments.first 
-            : Document(
-                id: '0',
-                name: 'No document',
-                previewPath: '',
-                uploadedDate: DateTime.now(),
-                content: 'No content available',
-              ),
+        orElse: () => Document(
+          id: '0',
+          name: 'Not found',
+          previewPath: '',
+          uploadedDate: DateTime.now(),
+          content: '',
+        ),
       );
+      
+      print('Document found: ${doc.name}');
+      print('Content length: ${doc.content.length}');
+      print('First 200 chars: ${doc.content.substring(0, doc.content.length > 200 ? 200 : doc.content.length)}');
+      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
       emit(state.copyWith(
         currentDocument: doc,
         readingState: ReadingState.idle,
@@ -124,15 +111,6 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     on<DeleteDocument>((event, emit) async {
       if (state.currentDocument?.id == event.documentId) {
         await _ttsService.stop();
-      }
-      
-      final userId = _authService.getUserId();
-      if (userId != null) {
-        try {
-          await _mongoService.deleteDocument(event.documentId);
-        } catch (e) {
-          print('Error deleting document from MongoDB: $e');
-        }
       }
       
       final updatedDocs = state.recentDocuments
@@ -223,9 +201,15 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       final text = event.text ?? 
                    state.currentDocument?.content ?? 
                    "No text available to read.";
+      
+      print('🔊 Starting TTS');
+      print('Text length: ${text.length}');
+      print('First 100 chars: ${text.substring(0, text.length > 100 ? 100 : text.length)}');
+      
       if (text.isEmpty || text == "No text available to read.") {
         return;
       }
+      
       emit(state.copyWith(
         readingState: ReadingState.playing,
         currentWordIndex: 0,
@@ -321,17 +305,10 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     final mockDocuments = [
       Document(
         id: '1',
-        name: 'Chapter1.docx',
+        name: 'Sample Document',
         previewPath: 'assets/doc_preview1.png',
-        uploadedDate: DateTime.now().subtract(const Duration(days: 1)),
-        content: "I SWORE IT WASN'T STEALING—reading until we outgrew it.",
-      ),
-      Document(
-        id: '2',
-        name: 'English.Docx',
-        previewPath: 'assets/doc_preview2.png',
-        uploadedDate: DateTime.now().subtract(const Duration(days: 7)),
-        content: "The quick brown fox jumps over the lazy dog.",
+        uploadedDate: DateTime.now(),
+        content: "This is a sample document. You can upload your own PDFs or text files to see your content here.",
       ),
     ];
     emit(state.copyWith(recentDocuments: mockDocuments));
