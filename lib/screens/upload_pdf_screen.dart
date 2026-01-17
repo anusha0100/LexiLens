@@ -1,13 +1,13 @@
-// lib/screens/upload_pdf_screen.dart
+// lib/screens/upload_pdf_screen.dart (FIXED VERSION)
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
-import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/services/auth_service.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/models/document_model.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'dart:io';
 
 class UploadPDFScreen extends StatefulWidget {
@@ -22,6 +22,8 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
   bool _isUploading = false;
   final _authService = AuthService();
   final _mongoService = MongoDBService();
+  final Map<String, String> _extractedTexts = {};
+  final Map<String, bool> _extractionStatus = {};
 
   Future<void> _pickFiles() async {
     try {
@@ -35,6 +37,13 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         setState(() {
           _selectedFiles = result.files;
         });
+        
+        // Extract text from PDFs immediately after selection
+        for (var file in _selectedFiles) {
+          if (file.extension?.toLowerCase() == 'pdf') {
+            await _extractTextFromPDF(file);
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -48,15 +57,80 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     }
   }
 
+  Future<void> _extractTextFromPDF(PlatformFile file) async {
+    if (file.path == null) return;
+
+    setState(() {
+      _extractionStatus[file.name] = true; // Start extraction
+    });
+
+    try {
+      final File pdfFile = File(file.path!);
+      final List<int> bytes = await pdfFile.readAsBytes();
+      
+      // Load the PDF document
+      final PdfDocument document = PdfDocument(inputBytes: bytes);
+      
+      // Extract text from all pages
+      String extractedText = '';
+      final PdfTextExtractor extractor = PdfTextExtractor(document);
+      
+      for (int i = 0; i < document.pages.count; i++) {
+        extractedText += extractor.extractText(startPageIndex: i, endPageIndex: i);
+        extractedText += '\n\n'; // Add spacing between pages
+      }
+      
+      // Clean up the text
+      extractedText = extractedText.trim();
+      
+      // Store the extracted text
+      setState(() {
+        _extractedTexts[file.name] = extractedText.isNotEmpty 
+            ? extractedText 
+            : 'No text could be extracted from this PDF';
+        _extractionStatus[file.name] = false; // Extraction complete
+      });
+      
+      // Dispose the document
+      document.dispose();
+      
+      print('✅ Extracted ${extractedText.length} characters from ${file.name}');
+      
+    } catch (e) {
+      print('❌ Error extracting text from PDF: $e');
+      setState(() {
+        _extractedTexts[file.name] = 'Error extracting text from PDF';
+        _extractionStatus[file.name] = false;
+      });
+    }
+  }
+
   Future<String> _readFileContent(PlatformFile file) async {
     try {
-      if (file.path == null) return '';
+      if (file.path == null) return 'File path not available';
       
-      final fileContent = await File(file.path!).readAsString();
-      return fileContent;
+      // Check if we already extracted text from this PDF
+      if (file.extension?.toLowerCase() == 'pdf' && _extractedTexts.containsKey(file.name)) {
+        return _extractedTexts[file.name]!;
+      }
+      
+      // For TXT files, read directly
+      if (file.extension?.toLowerCase() == 'txt') {
+        final fileContent = await File(file.path!).readAsString();
+        return fileContent;
+      }
+      
+      // For DOC/DOCX files
+      if (file.extension?.toLowerCase() == 'doc' || file.extension?.toLowerCase() == 'docx') {
+        // You would need a package like 'docx_to_text' for this
+        // For now, return a placeholder
+        return 'Document content (DOC/DOCX support requires additional package)';
+      }
+      
+      return 'Content not available for this file type';
     } catch (e) {
       print('Error reading file: $e');
-      return 'Content not available';
+      return 'Error reading file content';
     }
   }
 
@@ -92,7 +166,14 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
 
       for (final file in _selectedFiles) {
         try {
+          // Get the content (either extracted from PDF or read from file)
           final content = await _readFileContent(file);
+          
+          if (content.isEmpty || content.contains('Error') || content.contains('not available')) {
+            print('⚠️ Skipping ${file.name} - no valid content');
+            failCount++;
+            continue;
+          }
           
           final document = DocumentModel(
             userId: userId,
@@ -104,12 +185,16 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
             isFavorite: false,
           );
 
+          print('📤 Uploading ${file.name} with ${content.length} characters');
+          
           final savedDoc = await _mongoService.createDocument(document);
           
           if (savedDoc != null) {
             successCount++;
+            print('✅ Successfully uploaded ${file.name}');
           } else {
             failCount++;
+            print('❌ Failed to upload ${file.name}');
           }
         } catch (e) {
           print('Error uploading ${file.name}: $e');
@@ -140,12 +225,22 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
           SnackBar(
             content: Text(message),
             backgroundColor: bgColor,
+            duration: const Duration(seconds: 3),
           ),
         );
 
         if (successCount > 0) {
-          // Reload documents
+          // Reload documents in the app
           context.read<AppBloc>().add(LoadDocuments());
+          
+          // Clear the selected files
+          setState(() {
+            _selectedFiles.clear();
+            _extractedTexts.clear();
+            _extractionStatus.clear();
+          });
+          
+          // Go back to previous screen
           Navigator.pop(context);
         }
       }
@@ -166,8 +261,11 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
   }
 
   void _removeFile(int index) {
+    final fileName = _selectedFiles[index].name;
     setState(() {
       _selectedFiles.removeAt(index);
+      _extractedTexts.remove(fileName);
+      _extractionStatus.remove(fileName);
     });
   }
 
@@ -351,7 +449,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Max file size: 10MB per file',
+                    'PDF text extraction supported\nMax file size: 10MB per file',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[700],
@@ -373,6 +471,9 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
       itemCount: _selectedFiles.length,
       itemBuilder: (context, index) {
         final file = _selectedFiles[index];
+        final isExtracting = _extractionStatus[file.name] ?? false;
+        final hasExtractedText = _extractedTexts.containsKey(file.name);
+        
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 2,
@@ -388,11 +489,19 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
                 color: const Color(0xFFE8D5F0),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                _getFileIcon(file.extension ?? ''),
-                color: const Color(0xFFB789DA),
-                size: 28,
-              ),
+              child: isExtracting
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFB789DA),
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Icon(
+                      _getFileIcon(file.extension ?? ''),
+                      color: const Color(0xFFB789DA),
+                      size: 28,
+                    ),
             ),
             title: Text(
               file.name,
@@ -404,13 +513,36 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            subtitle: Text(
-              _formatFileSize(file.size),
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-                fontFamily: 'OpenDyslexic',
-              ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _formatFileSize(file.size),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontFamily: 'OpenDyslexic',
+                  ),
+                ),
+                if (isExtracting)
+                  const Text(
+                    'Extracting text...',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFFB789DA),
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  )
+                else if (hasExtractedText)
+                  Text(
+                    '✓ Text extracted (${_extractedTexts[file.name]!.length} chars)',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.green,
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+              ],
             ),
             trailing: IconButton(
               icon: const Icon(Icons.close, color: Colors.red),
