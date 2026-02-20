@@ -1,10 +1,7 @@
-// services/syllable_service.dart
 class SyllableService {
   static final SyllableService _instance = SyllableService._internal();
   factory SyllableService() => _instance;
   SyllableService._internal();
-
-  // Simple syllable detection algorithm
   List<String> breakIntoSyllables(String word) {
     word = word.toLowerCase().trim();
     
@@ -12,11 +9,11 @@ class SyllableService {
       return [word];
     }
 
-    // Common syllable patterns
+    
     final syllables = <String>[];
     var remaining = word;
     
-    // Handle common prefixes
+    
     final prefixes = ['un', 're', 'in', 'dis', 'en', 'non', 'pre', 'pro', 'anti', 'de', 'mis', 'over', 'out', 'sub', 'super', 'trans', 'under'];
     for (var prefix in prefixes) {
       if (remaining.startsWith(prefix) && remaining.length > prefix.length + 2) {
@@ -26,7 +23,7 @@ class SyllableService {
       }
     }
     
-    // Handle common suffixes
+    
     final suffixes = ['ing', 'ed', 'tion', 'sion', 'ness', 'ment', 'ly', 'er', 'est', 'ful', 'less', 'able', 'ible'];
     String? suffix;
     for (var suf in suffixes) {
@@ -37,7 +34,7 @@ class SyllableService {
       }
     }
     
-    // Split the middle part
+    
     final vowels = 'aeiouy';
     var currentSyllable = '';
     var lastWasVowel = false;
@@ -51,7 +48,6 @@ class SyllableService {
         lastWasVowel = true;
       } else {
         if (lastWasVowel && currentSyllable.length >= 2) {
-          // Check if we should split here
           if (i < remaining.length - 1) {
             final nextIsVowel = vowels.contains(remaining[i + 1]);
             if (!nextIsVowel) {
@@ -76,7 +72,6 @@ class SyllableService {
       syllables.add(suffix);
     }
     
-    // Fallback: if no syllables detected, return original word
     if (syllables.isEmpty) {
       return [word];
     }

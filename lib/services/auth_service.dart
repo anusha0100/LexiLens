@@ -1,4 +1,3 @@
-// lib/services/auth_service.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/models/user_session.dart';
@@ -395,7 +394,7 @@ class AuthService {
     }
   }
 
-  // Delete user account - Complete implementation
+  // Delete user account
   Future<Map<String, dynamic>> deleteAccount({String? password}) async {
     try {
       if (currentUser == null) {
@@ -408,25 +407,25 @@ class AuthService {
       final userId = currentUser!.uid;
       final userEmail = currentUser!.email;
 
-      print('🗑️ Starting account deletion for user: $userId');
+      print('Starting account deletion for user: $userId');
 
-      // Step 1: Re-authenticate if password provided
+      
       if (password != null && password.isNotEmpty) {
-        print('🔐 Re-authenticating user...');
+        print('Re-authenticating user...');
         final reauthResult = await reauthenticateWithPassword(password: password);
         if (!reauthResult['success']) {
           return reauthResult;
         }
       }
 
-      // Step 2: Get fresh auth token
+      
       final token = await currentUser!.getIdToken(true);
       if (token != null) {
         _mongoService.setAuthToken(token);
       }
 
-      // Step 3: Delete from backend (MongoDB)
-      print('🗄️ Deleting backend data...');
+      
+      print('Deleting backend data...');
       try {
         final response = await http.delete(
           Uri.parse('${MongoDBService.baseUrl}/users/$userId'),
@@ -447,9 +446,8 @@ class AuthService {
 
         if (response.statusCode != 200) {
           final errorData = jsonDecode(response.body);
-          print('❌ Backend deletion failed: ${errorData['message']}');
-          
-          // Continue with Firebase deletion even if backend fails
+          print('Backend deletion failed: ${errorData['message']}');
+        
           print('⚠️ Continuing with Firebase deletion despite backend error...');
         } else {
           final responseData = jsonDecode(response.body);

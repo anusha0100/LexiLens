@@ -1,4 +1,3 @@
-// lib/bloc/app_events.dart
 import 'package:equatable/equatable.dart';
 import 'package:lexilens/bloc/app_states.dart';
 

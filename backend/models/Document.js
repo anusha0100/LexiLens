@@ -38,7 +38,7 @@ const documentSchema = new mongoose.Schema({
   }
 });
 
-// Compound index for efficient queries
+
 documentSchema.index({ userId: 1, uploadedDate: -1 });
 
 module.exports = mongoose.model('Document', documentSchema);

@@ -30,7 +30,7 @@ class MongoDBService {
       ).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
-      print('❌ Connection test failed: $e');
+      print('Connection test failed: $e');
       return false;
     }
   }
@@ -38,7 +38,7 @@ class MongoDBService {
   Future<DocumentModel?> createDocument(DocumentModel document) async {
     try {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('📤 CREATING DOCUMENT');
+      print('CREATING DOCUMENT');
       print('Name: ${document.name}');
       print('Content Length: ${document.content.length}');
       print('First 200 chars: ${document.content.substring(0, document.content.length > 200 ? 200 : document.content.length)}');

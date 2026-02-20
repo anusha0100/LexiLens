@@ -11,12 +11,12 @@ class WordDictionary {
   WordDictionary({
     this.id,
     required this.word,
-    this.definition,
+    this.definition,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
     this.pronunciation,
     this.partOfSpeech,
     this.examples = const [],
     this.synonyms = const [],
-    required this.addedDate,
+    required this.addedDate,                                                                                                                                                                    
   });
 
   Map<String, dynamic> toJson() => {

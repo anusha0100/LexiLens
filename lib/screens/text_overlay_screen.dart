@@ -282,7 +282,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         throw Exception('User not logged in');
       }
 
-      // Create document model from extracted text
       final document = DocumentModel(
         userId: userId,
         name: 'Scanned_${DateTime.now().millisecondsSinceEpoch}',
@@ -293,11 +292,11 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         isFavorite: false,
       );
 
-      // Save to MongoDB
+      
       final savedDoc = await _mongoService.createDocument(document);
 
       if (savedDoc != null && mounted) {
-        // Success - update the app state
+        
         context.read<AppBloc>().add(LoadDocuments());
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -554,7 +553,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     );
   }
 
-  // Helper method to find word at position
+  
   String _findWordAtPosition(Offset position) {
     if (_decodedImage == null || _imageDisplaySize == null) return '';
 
@@ -757,7 +756,7 @@ class OverlayStyle extends CustomPainter {
     final scaleY = imageDisplaySize.height / imageActualSize.height;
     int globalWordIndex = 0;
 
-    // Determine if we should use OpenDyslexic based on language
+    
     final shouldUseOpenDyslexic =
         useOpenDyslexic && _isLatinLanguage(detectedLanguage);
 
@@ -782,7 +781,7 @@ class OverlayStyle extends CustomPainter {
         final isLineActive = currentWordIndex >= lineStartIndex &&
             currentWordIndex < lineEndIndex;
 
-        // Background
+        
         final backgroundPaint = Paint()
           ..color = const Color(0xFFEEEEEE).withOpacity(overlayOpacity)
           ..style = PaintingStyle.fill;
@@ -794,10 +793,10 @@ class OverlayStyle extends CustomPainter {
 
         canvas.drawRRect(bgRect, backgroundPaint);
 
-        // Calculate font size
+        
         final calculatedFontSize = (lineHeight * 0.5).clamp(8.0, fontSize);
 
-        // Use appropriate font based on language
+      
         final textStyle = TextStyle(
           fontSize: calculatedFontSize,
           fontWeight: FontWeight.w500,

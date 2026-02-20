@@ -1,4 +1,3 @@
-// lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -151,7 +150,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              // Edit Profile Button
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: SizedBox(
@@ -188,7 +186,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              // Menu Items Section
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(
@@ -588,7 +585,7 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _handleAccountDeletion(BuildContext context) async {
     final authService = AuthService();
 
-    // Show loading
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -612,14 +609,13 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
 
-    // Attempt deletion without password first
+    
     var result = await authService.deleteAccount();
 
     if (context.mounted) {
-      Navigator.pop(context); // Close loading
+      Navigator.pop(context); 
 
       if (result['success']) {
-        // Success - navigate to login
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Account deleted successfully'),
@@ -636,10 +632,8 @@ class SettingsScreen extends StatelessWidget {
           (route) => false,
         );
       } else if (result['requiresReauth'] == true) {
-        // Need re-authentication - show password dialog
         _showReauthDialog(context);
       } else {
-        // Other error
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message'] ?? 'Failed to delete account'),
@@ -739,7 +733,7 @@ class SettingsScreen extends StatelessWidget {
                     Navigator.pop(dialogContext);
                     passwordController.dispose();
 
-                    // Show loading
+                    
                     showDialog(
                       context: context,
                       barrierDismissible: false,
@@ -763,11 +757,11 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     );
 
-                    // Delete with password
+                    
                     final result = await authService.deleteAccount(password: password);
 
                     if (context.mounted) {
-                      Navigator.pop(context); // Close loading
+                      Navigator.pop(context); 
 
                       if (result['success']) {
                         ScaffoldMessenger.of(context).showSnackBar(

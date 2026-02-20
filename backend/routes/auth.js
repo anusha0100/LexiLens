@@ -13,23 +13,16 @@ router.post('/request-reset', async (req, res) => {
         message: 'Email is required',
       });
     }
-
-    // Generate reset token
     const resetToken = require('crypto').randomBytes(32).toString('hex');
-    const expiresAt = Date.now() + 3600000; // 1 hour
-
-    // Store token
+    const expiresAt = Date.now() + 3600000; 
     resetTokens.set(resetToken, {
       email,
       expiresAt,
     });
-
-    // Return token directly (for testing/development only)
-    // In production, this would be sent via email
     res.status(200).json({
       success: true,
       message: 'Password reset token generated',
-      token: resetToken, // Only for development - remove in production
+      token: resetToken, 
     });
   } catch (error) {
     console.error('Password reset request error:', error);
@@ -41,7 +34,7 @@ router.post('/request-reset', async (req, res) => {
   }
 });
 
-// Verify reset token
+
 router.post('/verify-reset-token', async (req, res) => {
   try {
     const { token } = req.body;
@@ -85,7 +78,6 @@ router.post('/verify-reset-token', async (req, res) => {
   }
 });
 
-// Reset password
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
@@ -113,13 +105,7 @@ router.post('/reset-password', async (req, res) => {
         message: 'Token has expired',
       });
     }
-
-    // Here you would update the password in Firebase
-    // This is handled on the client side with Firebase Auth
-    
-    // Delete used token
     resetTokens.delete(token);
-
     res.status(200).json({
       success: true,
       message: 'Password reset successful',

@@ -1,6 +1,4 @@
-// lib/screens/reading_screen.dart
-// ignore_for_file: deprecated_member_use
-
+// ignore_for_file: deprecated_member_use                                                                                                                                                                                                                                                                                                                                                                                       
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -316,7 +314,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                             } else {
                               if (document.content.isNotEmpty) {
                                 print(
-                                    '🔊 Starting TTS with ${document.content.length} characters');
+                                    'Starting TTS with ${document.content.length} characters');
                                 context.read<AppBloc>().add(
                                     StartTextToSpeech(text: document.content));
                               } else {
@@ -392,8 +390,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
     );
   }
 
-  // In reading_screen.dart, update the _buildText method to handle different fonts
-
   Widget _buildText(BuildContext context, AppState state, Document document,
       Color textColor) {
     if (document.content.isEmpty) {
@@ -418,15 +414,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
     }
 
     final words = _textSelectionService.extractWords(document.content);
-
-    // Determine font family based on content
     String? fontFamily;
     if (state.useOpenDyslexic) {
-      // Check if content is Latin-based
       if (_isLatinText(document.content)) {
         fontFamily = 'OpenDyslexic';
       } else {
-        // Use system default for non-Latin scripts
         fontFamily = null;
       }
     }
@@ -443,8 +435,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
         ),
       );
     }
-
-    // Active reading with word highlighting
     return RichText(
       text: TextSpan(
         children: words.asMap().entries.map((entry) {
@@ -475,7 +465,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
   }
 
   bool _isLatinText(String text) {
-    // Check if text is primarily Latin script
     final latinPattern = RegExp(r'^[a-zA-Z0-9\s\p{P}]+$', unicode: true);
     final sample = text.length > 100 ? text.substring(0, 100) : text;
     return latinPattern.hasMatch(sample);
@@ -483,11 +472,10 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
   String _findWordAtPosition(
       BuildContext context, Offset position, List<String> words) {
-    // Simple approximation - in production, use more sophisticated hit testing
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return '';
 
-    // Calculate approximate word index based on position
+    
     final relativeY = position.dy;
     final fontSize = context.read<AppBloc>().state.fontSize;
     final lineSpacing = context.read<AppBloc>().state.lineSpacing;
@@ -495,11 +483,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
 
     final lineIndex = (relativeY / lineHeight).floor();
 
-    // Rough estimate of words per line (this is simplified)
-    final screenWidth = MediaQuery.of(context).size.width - 48; // padding
+    
+    final screenWidth = MediaQuery.of(context).size.width - 48; 
     final avgCharWidth = fontSize * 0.6;
     final wordsPerLine =
-        (screenWidth / (avgCharWidth * 7)).floor(); // avg 7 chars per word
+        (screenWidth / (avgCharWidth * 7)).floor();                                                                                                                                                                                                                                                                                                                               
 
     final wordIndex = (lineIndex * wordsPerLine).clamp(0, words.length - 1);
 
@@ -520,7 +508,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        backgroundColor: const Color(0xFFB789DA),
+        backgroundColor: const Color(0xFFB789DA),                 
         title: Text(
           word,
           textAlign: TextAlign.center,
@@ -788,7 +776,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
                           },
                         ),
 
-                        // Letter Spacing (only for OpenDyslexic)
                         if (state.useOpenDyslexic) ...[
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -823,7 +810,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
                         const Divider(),
                         const SizedBox(height: 8),
 
-                        // Overlay Opacity
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [

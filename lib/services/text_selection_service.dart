@@ -1,17 +1,13 @@
-// lib/services/text_selection_service.dart
 class TextSelectionService {
   static final TextSelectionService _instance = TextSelectionService._internal();
   factory TextSelectionService() => _instance;
   TextSelectionService._internal();
 
-  // Improved word extraction with better boundaries
+  
   List<String> extractWords(String text) {
     if (text.isEmpty) return [];
-    
-    // Remove extra whitespace and normalize
     text = text.trim().replaceAll(RegExp(r'\s+'), ' ');
     
-    // Split by spaces but keep punctuation with words
     final words = <String>[];
     final buffer = StringBuffer();
     
@@ -35,12 +31,12 @@ class TextSelectionService {
     return words;
   }
 
-  // Clean word for display (remove punctuation)
+  
   String cleanWord(String word) {
     return word.replaceAll(RegExp(r'[^\w\s]'), '');
   }
 
-  // Get word boundaries for precise highlighting
+  
   List<WordBoundary> getWordBoundaries(String text) {
     final boundaries = <WordBoundary>[];
     final words = extractWords(text);

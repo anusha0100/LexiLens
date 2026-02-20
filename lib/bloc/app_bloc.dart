@@ -1,4 +1,3 @@
-// lib/bloc/app_bloc.dart - Add these handlers
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
