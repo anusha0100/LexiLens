@@ -312,7 +312,7 @@ class AuthService {
   }
 
   // Password reset via backend email service
-  Future<Map<String, dynamic>> requestPasswordReset({
+  /*Future<Map<String, dynamic>> requestPasswordReset({
     required String email,
   }) async {
     try {
@@ -341,7 +341,7 @@ class AuthService {
         'message': e.toString(),
       };
     }
-  }
+  }*/
 
   // Re-authenticate user with password
   Future<Map<String, dynamic>> reauthenticateWithPassword({
