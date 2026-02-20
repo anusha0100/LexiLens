@@ -16,7 +16,7 @@ class MongoDBService {
     _authToken = token;
   }
 
-  Map<String, String> get _headers => {
+  Map<String, String> get headers => {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     if (_authToken.isNotEmpty) 'Authorization': 'Bearer $_authToken',
@@ -26,7 +26,7 @@ class MongoDBService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/health'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
@@ -57,7 +57,7 @@ class MongoDBService {
       
       final response = await http.post(
         Uri.parse('$baseUrl/documents'),
-        headers: _headers,
+        headers: headers,
         body: jsonEncode(payload),
       ).timeout(const Duration(seconds: 20));
 
@@ -84,7 +84,7 @@ class MongoDBService {
       
       final response = await http.get(
         Uri.parse('$baseUrl/documents/user/$userId'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
 
       print('Response Status: ${response.statusCode}');
@@ -118,7 +118,7 @@ class MongoDBService {
       
       final response = await http.get(
         Uri.parse('$baseUrl/documents/$documentId'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
 
       print('Response Status: ${response.statusCode}');
@@ -145,7 +145,7 @@ class MongoDBService {
     try {
       final response = await http.put(
         Uri.parse('$baseUrl/documents/$documentId'),
-        headers: _headers,
+        headers: headers,
         body: jsonEncode(updates),
       ).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
@@ -160,7 +160,7 @@ class MongoDBService {
       print('Deleting document: $documentId');
       final response = await http.delete(
         Uri.parse('$baseUrl/documents/$documentId'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
       
       print('Delete Response: ${response.statusCode}');
@@ -175,7 +175,7 @@ class MongoDBService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/sessions'),
-        headers: _headers,
+        headers: headers,
         body: jsonEncode(session.toJson()),
       ).timeout(const Duration(seconds: 15));
 
@@ -194,7 +194,7 @@ class MongoDBService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/sessions/$userId/active'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -211,7 +211,7 @@ class MongoDBService {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/sessions/$sessionId'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
@@ -224,7 +224,7 @@ class MongoDBService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/tags'),
-        headers: _headers,
+        headers: headers,
         body: jsonEncode(tag.toJson()),
       ).timeout(const Duration(seconds: 15));
 
@@ -242,7 +242,7 @@ class MongoDBService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/tags/user/$userId'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -259,7 +259,7 @@ class MongoDBService {
     try {
       final response = await http.delete(
         Uri.parse('$baseUrl/tags/$tagId'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
@@ -272,7 +272,7 @@ class MongoDBService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/settings'),
-        headers: _headers,
+        headers: headers,
         body: jsonEncode({
           'userId': userId,
           'settingKey': key,
@@ -289,7 +289,7 @@ class MongoDBService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/settings/$userId/$key'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
@@ -306,7 +306,7 @@ class MongoDBService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/settings/user/$userId'),
-        headers: _headers,
+        headers: headers,
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {

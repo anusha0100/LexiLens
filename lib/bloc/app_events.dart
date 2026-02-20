@@ -1,3 +1,4 @@
+// lib/bloc/app_events.dart
 import 'package:equatable/equatable.dart';
 import 'package:lexilens/bloc/app_states.dart';
 
@@ -98,9 +99,7 @@ class StartTextToSpeech extends AppEvent {
 }
 
 class StopTextToSpeech extends AppEvent {}
-
 class PauseTextToSpeech extends AppEvent {}
-
 class ResumeTextToSpeech extends AppEvent {}
 
 class UpdateReadingState extends AppEvent {
@@ -124,6 +123,7 @@ class ToggleSound extends AppEvent {}
 class ToggleBookmark extends AppEvent {}
 class ToggleFont extends AppEvent {}
 class ToggleHighlight extends AppEvent {}
+class ToggleRuler extends AppEvent {}
 
 // Audio Adjustment Events
 class AdjustSpeed extends AppEvent {
@@ -149,6 +149,67 @@ class AdjustPitch extends AppEvent {
   @override
   List<Object?> get props => [pitch];
 }
+
+// Font and Display Events
+class ChangeFontFamily extends AppEvent {
+  final String fontFamily;
+  ChangeFontFamily(this.fontFamily);
+  
+  @override
+  List<Object?> get props => [fontFamily];
+}
+
+class AdjustFontSize extends AppEvent {
+  final double fontSize;
+  AdjustFontSize(this.fontSize);
+  
+  @override
+  List<Object?> get props => [fontSize];
+}
+
+class AdjustLineSpacing extends AppEvent {
+  final double lineSpacing;
+  AdjustLineSpacing(this.lineSpacing);
+  
+  @override
+  List<Object?> get props => [lineSpacing];
+}
+
+class AdjustLetterSpacing extends AppEvent {
+  final double letterSpacing;
+  AdjustLetterSpacing(this.letterSpacing);
+  
+  @override
+  List<Object?> get props => [letterSpacing];
+}
+
+class ToggleOpenDyslexic extends AppEvent {}
+
+class AdjustOverlayOpacity extends AppEvent {
+  final double opacity;
+  AdjustOverlayOpacity(this.opacity);
+  
+  @override
+  List<Object?> get props => [opacity];
+}
+
+class UpdateRulerPosition extends AppEvent {
+  final double position;
+  UpdateRulerPosition(this.position);
+  
+  @override
+  List<Object?> get props => [position];
+}
+
+class AdjustZoom extends AppEvent {
+  final double zoomLevel;
+  AdjustZoom(this.zoomLevel);
+  
+  @override
+  List<Object?> get props => [zoomLevel];
+}
+
+class ResetZoom extends AppEvent {}
 
 // Filter Events
 class ChangeTextColor extends AppEvent {

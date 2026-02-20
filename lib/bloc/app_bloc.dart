@@ -1,3 +1,4 @@
+// lib/bloc/app_bloc.dart - Add these handlers
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
@@ -16,6 +17,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     _initializeTTS();
     _loadUsername();
 
+    // Navigation Events
     on<NavigateToHome>((event, emit) {
       emit(state.copyWith(currentTab: AppTab.home));
     });
@@ -36,6 +38,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       emit(state.copyWith(currentTab: AppTab.settings));
     });
 
+    // Document Events
     on<LoadDocuments>((event, emit) async {
       final userId = _authService.getUserId();
       if (userId != null) {
@@ -164,6 +167,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       }
     });
 
+    // Tag Events
     on<LoadDocumentTags>((event, emit) async {
       final userId = _authService.getUserId();
       if (userId != null) {
@@ -195,6 +199,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       }
     });
 
+    // TTS Events
     on<StartTextToSpeech>((event, emit) async {
       final text = event.text ?? 
                    state.currentDocument?.content ?? 
@@ -233,6 +238,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       emit(state.copyWith(readingState: ReadingState.playing));
     });
 
+    // Control Events
     on<ToggleSound>((event, emit) async {
       final newState = !state.isSoundEnabled;
       emit(state.copyWith(isSoundEnabled: newState));
@@ -254,6 +260,13 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       emit(state.copyWith(isHighlighted: !state.isHighlighted));
     });
 
+    on<ToggleRuler>((event, emit) async {
+      final newState = !state.isRulerEnabled;
+      emit(state.copyWith(isRulerEnabled: newState));
+      await _saveUserSetting('ruler_enabled', newState);
+    });
+
+    // Audio Adjustment Events
     on<AdjustSpeed>((event, emit) async {
       emit(state.copyWith(readingSpeed: event.speed));
       await _ttsService.setSpeed(event.speed);
@@ -272,10 +285,60 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       await _saveUserSetting('pitch', event.pitch);
     });
 
+    // Font and Display Events
+    on<ChangeFontFamily>((event, emit) async {
+      emit(state.copyWith(fontFamily: event.fontFamily));
+      await _saveUserSetting('font_family', event.fontFamily);
+    });
+
+    on<AdjustFontSize>((event, emit) async {
+      emit(state.copyWith(fontSize: event.fontSize));
+      await _saveUserSetting('font_size', event.fontSize);
+    });
+
+    on<AdjustLineSpacing>((event, emit) async {
+      emit(state.copyWith(lineSpacing: event.lineSpacing));
+      await _saveUserSetting('line_spacing', event.lineSpacing);
+    });
+
+    on<AdjustLetterSpacing>((event, emit) async {
+      emit(state.copyWith(letterSpacing: event.letterSpacing));
+      await _saveUserSetting('letter_spacing', event.letterSpacing);
+    });
+
+    on<ToggleOpenDyslexic>((event, emit) async {
+      final newState = !state.useOpenDyslexic;
+      emit(state.copyWith(useOpenDyslexic: newState));
+      await _saveUserSetting('use_opendyslexic', newState);
+    });
+
+    on<AdjustOverlayOpacity>((event, emit) async {
+      final clampedOpacity = event.opacity.clamp(0.5, 1.0);
+      emit(state.copyWith(overlayOpacity: clampedOpacity));
+      await _saveUserSetting('overlay_opacity', clampedOpacity);
+    });
+
+    on<UpdateRulerPosition>((event, emit) async {
+      emit(state.copyWith(rulerPosition: event.position));
+      await _saveUserSetting('ruler_position', event.position);
+    });
+
+    on<AdjustZoom>((event, emit) async {
+      final clampedZoom = event.zoomLevel.clamp(1.0, 3.0);
+      emit(state.copyWith(zoomLevel: clampedZoom));
+      await _saveUserSetting('zoom_level', clampedZoom);
+    });
+
+    on<ResetZoom>((event, emit) async {
+      emit(state.copyWith(zoomLevel: 1.0));
+      await _saveUserSetting('zoom_level', 1.0);
+    });
+
     on<UpdateWordIndex>((event, emit) {
       emit(state.copyWith(currentWordIndex: event.index));
     });
 
+    // Filter Events
     on<ChangeTextColor>((event, emit) async {
       emit(state.copyWith(selectedTextColor: event.colorIndex));
       await _saveUserSetting('text_color', event.colorIndex);
@@ -287,7 +350,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     });
 
     on<SaveFilterSettings>((event, emit) async {
-      
+      // Already saved individually
     });
 
     on<LoadUserSettings>((event, emit) async {
@@ -295,7 +358,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     });
 
     on<UploadPDF>((event, emit) {
-      
+      // Handle PDF upload
     });
   }
 
@@ -339,11 +402,29 @@ class AppBloc extends Bloc<AppEvent, AppState> {
         final settings = await _mongoService.getAllSettings(userId);
         
         emit(state.copyWith(
+          // Audio settings
           readingSpeed: settings['reading_speed']?.toDouble() ?? 0.5,
           volume: settings['volume']?.toDouble() ?? 1.0,
           pitch: settings['pitch']?.toDouble() ?? 1.0,
+          
+          // Color settings
           selectedTextColor: settings['text_color']?.toInt() ?? 0,
           selectedBackgroundColor: settings['background_color']?.toInt() ?? 0,
+          
+          // Font settings
+          fontFamily: settings['font_family']?.toString() ?? 'OpenDyslexic',
+          fontSize: settings['font_size']?.toDouble() ?? 18.0,
+          lineSpacing: settings['line_spacing']?.toDouble() ?? 1.8,
+          letterSpacing: settings['letter_spacing']?.toDouble() ?? 0.5,
+          useOpenDyslexic: settings['use_opendyslexic'] ?? true,
+          
+          // Display settings
+          overlayOpacity: settings['overlay_opacity']?.toDouble() ?? 0.75,
+          isRulerEnabled: settings['ruler_enabled'] ?? false,
+          rulerPosition: settings['ruler_position']?.toDouble() ?? 0.5,
+          zoomLevel: settings['zoom_level']?.toDouble() ?? 1.0,
+          
+          // User info
           userName: settings['user_name']?.toString() ?? await _authService.getUsername(),
         ));
       } catch (e) {

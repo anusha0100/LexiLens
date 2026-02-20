@@ -16,7 +16,7 @@
         <!-- ML Kit metadata -->
         <meta-data
             android:name="com.google.mlkit.vision.DEPENDENCIES"
-            android:value="ocr" />
+            android:value="ocr, ocr_devanagari" />
         
         <activity
             android:name=".MainActivity"

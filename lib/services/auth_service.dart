@@ -4,6 +4,8 @@ import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/models/user_session.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class AuthService {
   static final AuthService _instance = AuthService._internal();
@@ -18,6 +20,7 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => currentUser != null;
+  
   String extractUsername(String email) {
     try {
       final parts = email.split('@');
@@ -37,6 +40,7 @@ class AuthService {
       return 'User';
     }
   }
+  
   String getUserDisplayName() {
     if (currentUser?.email != null) {
       return extractUsername(currentUser!.email!);
@@ -248,7 +252,6 @@ class AuthService {
     }
   }
 
-  
   Future<void> logout() async {
     try {
       if (currentUser != null) {
@@ -267,17 +270,14 @@ class AuthService {
     }
   }
 
-  
   String? getUserEmail() {
     return currentUser?.email;
   }
 
-  
   String? getUserId() {
     return currentUser?.uid;
   }
 
-  
   Future<String> getUsername() async {
     if (currentUser?.email != null) {
       try {
@@ -311,7 +311,206 @@ class AuthService {
     }
   }
 
-  
+  // Password reset via backend email service
+  Future<Map<String, dynamic>> requestPasswordReset({
+    required String email,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${MongoDBService.baseUrl}/auth/request-reset'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      
+      final data = jsonDecode(response.body);
+      
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': 'Password reset email sent. Please check your inbox.',
+        };
+      }
+      
+      return {
+        'success': false,
+        'message': data['message'] ?? 'Failed to send reset email',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e.toString(),
+      };
+    }
+  }
+
+  // Re-authenticate user with password
+  Future<Map<String, dynamic>> reauthenticateWithPassword({
+    required String password,
+  }) async {
+    try {
+      if (currentUser == null || currentUser!.email == null) {
+        return {
+          'success': false,
+          'message': 'No user logged in',
+        };
+      }
+
+      final credential = EmailAuthProvider.credential(
+        email: currentUser!.email!,
+        password: password,
+      );
+
+      await currentUser!.reauthenticateWithCredential(credential);
+
+      return {
+        'success': true,
+        'message': 'Re-authentication successful',
+      };
+    } on FirebaseAuthException catch (e) {
+      String message = 'Re-authentication failed';
+      
+      switch (e.code) {
+        case 'wrong-password':
+          message = 'Incorrect password';
+          break;
+        case 'user-mismatch':
+          message = 'Credential does not match current user';
+          break;
+        case 'invalid-credential':
+          message = 'Invalid credentials';
+          break;
+        default:
+          message = e.message ?? 'An error occurred';
+      }
+
+      return {
+        'success': false,
+        'message': message,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': e.toString(),
+      };
+    }
+  }
+
+  // Delete user account - Complete implementation
+  Future<Map<String, dynamic>> deleteAccount({String? password}) async {
+    try {
+      if (currentUser == null) {
+        return {
+          'success': false,
+          'message': 'No user logged in',
+        };
+      }
+      
+      final userId = currentUser!.uid;
+      final userEmail = currentUser!.email;
+
+      print('🗑️ Starting account deletion for user: $userId');
+
+      // Step 1: Re-authenticate if password provided
+      if (password != null && password.isNotEmpty) {
+        print('🔐 Re-authenticating user...');
+        final reauthResult = await reauthenticateWithPassword(password: password);
+        if (!reauthResult['success']) {
+          return reauthResult;
+        }
+      }
+
+      // Step 2: Get fresh auth token
+      final token = await currentUser!.getIdToken(true);
+      if (token != null) {
+        _mongoService.setAuthToken(token);
+      }
+
+      // Step 3: Delete from backend (MongoDB)
+      print('🗄️ Deleting backend data...');
+      try {
+        final response = await http.delete(
+          Uri.parse('${MongoDBService.baseUrl}/users/$userId'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            if (token != null) 'Authorization': 'Bearer $token',
+          },
+        ).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception('Backend deletion request timed out');
+          },
+        );
+
+        print('Backend response status: ${response.statusCode}');
+        print('Backend response body: ${response.body}');
+
+        if (response.statusCode != 200) {
+          final errorData = jsonDecode(response.body);
+          print('❌ Backend deletion failed: ${errorData['message']}');
+          
+          // Continue with Firebase deletion even if backend fails
+          print('⚠️ Continuing with Firebase deletion despite backend error...');
+        } else {
+          final responseData = jsonDecode(response.body);
+          print('✅ Backend data deleted: ${responseData['details']}');
+        }
+      } catch (e) {
+        print('❌ Backend deletion error: $e');
+        print('⚠️ Continuing with Firebase deletion...');
+      }
+
+      // Step 4: Delete from Firebase
+      print('🔥 Deleting Firebase account...');
+      try {
+        await currentUser!.delete();
+        print('✅ Firebase account deleted');
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          print('⚠️ Requires recent login');
+          return {
+            'success': false,
+            'message': 'For security, please enter your password to continue',
+            'requiresReauth': true,
+          };
+        }
+        throw e;
+      }
+
+      // Step 5: Logout and clear local data
+      print('🧹 Cleaning up local data...');
+      await logout();
+
+      print('✅ Account deletion completed successfully');
+      
+      return {
+        'success': true,
+        'message': 'Account deleted successfully',
+      };
+    } on FirebaseAuthException catch (e) {
+      print('❌ Firebase error during deletion: ${e.code} - ${e.message}');
+      
+      if (e.code == 'requires-recent-login') {
+        return {
+          'success': false,
+          'message': 'For security, please enter your password to continue',
+          'requiresReauth': true,
+        };
+      }
+      
+      return {
+        'success': false,
+        'message': e.message ?? 'Failed to delete Firebase account',
+      };
+    } catch (e) {
+      print('❌ Unexpected error during deletion: $e');
+      return {
+        'success': false,
+        'message': 'Failed to delete account: ${e.toString()}',
+      };
+    }
+  }
+
   Future<void> refreshSession() async {
     try {
       if (currentUser != null) {

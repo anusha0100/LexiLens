@@ -22,6 +22,17 @@ class AppState extends Equatable {
   final String userName;
   final List<DocumentTag> availableTags;
   
+  // New font and display settings
+  final String fontFamily;
+  final double fontSize;
+  final double lineSpacing;
+  final double letterSpacing;
+  final bool useOpenDyslexic;
+  final double overlayOpacity;
+  final bool isRulerEnabled;
+  final double rulerPosition;
+  final double zoomLevel;
+  
   const AppState({
     this.currentTab = AppTab.home,
     this.recentDocuments = const [],
@@ -37,8 +48,18 @@ class AppState extends Equatable {
     this.currentWordIndex = 0,
     this.selectedTextColor = 0,
     this.selectedBackgroundColor = 0,
-    this.userName = 'Archita',
+    this.userName = 'User',
     this.availableTags = const [],
+    // Default font settings
+    this.fontFamily = 'OpenDyslexic',
+    this.fontSize = 18.0,
+    this.lineSpacing = 1.8,
+    this.letterSpacing = 0.5,
+    this.useOpenDyslexic = true,
+    this.overlayOpacity = 0.75,
+    this.isRulerEnabled = false,
+    this.rulerPosition = 0.5,
+    this.zoomLevel = 1.0,
   });
 
   @override
@@ -59,6 +80,15 @@ class AppState extends Equatable {
     selectedBackgroundColor,
     userName,
     availableTags,
+    fontFamily,
+    fontSize,
+    lineSpacing,
+    letterSpacing,
+    useOpenDyslexic,
+    overlayOpacity,
+    isRulerEnabled,
+    rulerPosition,
+    zoomLevel,
   ];
 
   AppState copyWith({
@@ -78,6 +108,15 @@ class AppState extends Equatable {
     int? selectedBackgroundColor,
     String? userName,
     List<DocumentTag>? availableTags,
+    String? fontFamily,
+    double? fontSize,
+    double? lineSpacing,
+    double? letterSpacing,
+    bool? useOpenDyslexic,
+    double? overlayOpacity,
+    bool? isRulerEnabled,
+    double? rulerPosition,
+    double? zoomLevel,
   }) {
     return AppState(
       currentTab: currentTab ?? this.currentTab,
@@ -96,6 +135,15 @@ class AppState extends Equatable {
       selectedBackgroundColor: selectedBackgroundColor ?? this.selectedBackgroundColor,
       userName: userName ?? this.userName,
       availableTags: availableTags ?? this.availableTags,
+      fontFamily: fontFamily ?? this.fontFamily,
+      fontSize: fontSize ?? this.fontSize,
+      lineSpacing: lineSpacing ?? this.lineSpacing,
+      letterSpacing: letterSpacing ?? this.letterSpacing,
+      useOpenDyslexic: useOpenDyslexic ?? this.useOpenDyslexic,
+      overlayOpacity: overlayOpacity ?? this.overlayOpacity,
+      isRulerEnabled: isRulerEnabled ?? this.isRulerEnabled,
+      rulerPosition: rulerPosition ?? this.rulerPosition,
+      zoomLevel: zoomLevel ?? this.zoomLevel,
     );
   }
 }

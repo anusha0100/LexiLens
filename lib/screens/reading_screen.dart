@@ -1,9 +1,15 @@
+// lib/screens/reading_screen.dart
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/screens/filter_screen.dart';
+import 'package:lexilens/widgets/reading_ruler.dart';
+import 'package:lexilens/services/text_selection_service.dart';
+import 'package:lexilens/services/syllable_service.dart';
 
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key});
@@ -13,8 +19,8 @@ class ReadingScreen extends StatefulWidget {
 }
 
 class _ReadingScreenState extends State<ReadingScreen> {
-  bool _useOpenDyslexic = true;
-  double _fontSize = 18.0;
+  final _textSelectionService = TextSelectionService();
+  final _syllableService = SyllableService();
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +30,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
         print('Reading Screen - Current Document: ${document?.name}');
         print('Content available: ${document?.content.isNotEmpty ?? false}');
         print('Content length: ${document?.content.length ?? 0}');
-        
+
         if (document == null) {
           return Scaffold(
             appBar: AppBar(
@@ -53,7 +59,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
           );
         }
 
-        Color backgroundColor = _getBackgroundColor(state.selectedBackgroundColor);
+        Color backgroundColor =
+            _getBackgroundColor(state.selectedBackgroundColor);
         Color textColor = _getTextColor(state.selectedTextColor);
 
         return Scaffold(
@@ -78,20 +85,22 @@ class _ReadingScreenState extends State<ReadingScreen> {
             actions: [
               IconButton(
                 icon: Icon(
-                  _useOpenDyslexic ? Icons.font_download : Icons.font_download_outlined,
+                  state.useOpenDyslexic
+                      ? Icons.font_download
+                      : Icons.font_download_outlined,
                   color: Colors.white,
                 ),
-                tooltip: _useOpenDyslexic ? 'Disable OpenDyslexic' : 'Enable OpenDyslexic',
+                tooltip: state.useOpenDyslexic
+                    ? 'Disable OpenDyslexic'
+                    : 'Enable OpenDyslexic',
                 onPressed: () {
-                  setState(() {
-                    _useOpenDyslexic = !_useOpenDyslexic;
-                  });
+                  context.read<AppBloc>().add(ToggleOpenDyslexic());
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        _useOpenDyslexic 
-                            ? 'OpenDyslexic font enabled' 
-                            : 'Default font enabled',
+                        state.useOpenDyslexic
+                            ? 'Default font enabled'
+                            : 'OpenDyslexic font enabled',
                       ),
                       duration: const Duration(seconds: 1),
                       backgroundColor: const Color(0xFFB789DA),
@@ -107,14 +116,18 @@ class _ReadingScreenState extends State<ReadingScreen> {
           ),
           body: Column(
             children: [
+              // Control Panel
               Container(
                 color: const Color(0xFFE8BFD5),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _ControlButton(
-                      icon: state.isSoundEnabled ? Icons.volume_up : Icons.volume_off,
+                      icon: state.isSoundEnabled
+                          ? Icons.volume_up
+                          : Icons.volume_off,
                       label: 'Sound',
                       isActive: state.isSoundEnabled,
                       onTap: () {
@@ -122,13 +135,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
                       },
                     ),
                     _ControlButton(
-                      icon: Icons.text_fields,
-                      label: 'Font',
-                      isActive: _useOpenDyslexic,
+                      icon: Icons.straighten,
+                      label: 'Ruler',
+                      isActive: state.isRulerEnabled,
                       onTap: () {
-                        setState(() {
-                          _useOpenDyslexic = !_useOpenDyslexic;
-                        });
+                        context.read<AppBloc>().add(ToggleRuler());
                       },
                     ),
                     _ControlButton(
@@ -142,15 +153,93 @@ class _ReadingScreenState extends State<ReadingScreen> {
                   ],
                 ),
               ),
+              // Reading Area
               Expanded(
-                child: Container(
-                  color: backgroundColor,
-                  padding: const EdgeInsets.all(24),
-                  child: SingleChildScrollView(
-                    child: _buildText(context, state, document, textColor),
-                  ),
+                child: Stack(
+                  children: [
+                    InteractiveViewer(
+                      minScale: 1.0,
+                      maxScale: 3.0,
+                      scaleEnabled: true,
+                      panEnabled: true,
+                      onInteractionUpdate: (details) {
+                        if (details.scale != state.zoomLevel) {
+                          context
+                              .read<AppBloc>()
+                              .add(AdjustZoom(details.scale));
+                        }
+                      },
+                      child: Container(
+                        color: backgroundColor,
+                        padding: const EdgeInsets.all(24),
+                        width: MediaQuery.of(context).size.width,
+                        child: SingleChildScrollView(
+                          child:
+                              _buildText(context, state, document, textColor),
+                        ),
+                      ),
+                    ),
+                    // Ruler overlay
+                    if (state.isRulerEnabled)
+                      ReadingRuler(
+                        screenSize: MediaQuery.of(context).size,
+                        initialPosition: state.rulerPosition,
+                        onPositionChanged: (position) {
+                          context
+                              .read<AppBloc>()
+                              .add(UpdateRulerPosition(position));
+                        },
+                      ),
+                    // Zoom indicator
+                    if (state.zoomLevel > 1.0)
+                      Positioned(
+                        top: 16,
+                        right: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.zoom_in,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${(state.zoomLevel * 100).toInt()}%',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontFamily: 'OpenDyslexic',
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              GestureDetector(
+                                onTap: () {
+                                  context.read<AppBloc>().add(ResetZoom());
+                                },
+                                child: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
+              // Playback Controls
               Container(
                 color: const Color(0xFF1F1F39),
                 padding: const EdgeInsets.symmetric(vertical: 16),
@@ -171,8 +260,8 @@ class _ReadingScreenState extends State<ReadingScreen> {
                             ),
                             const Spacer(),
                             Text(
-                              state.readingState == ReadingState.playing 
-                                  ? 'Playing' 
+                              state.readingState == ReadingState.playing
+                                  ? 'Playing'
                                   : 'Paused',
                               style: const TextStyle(
                                 color: Colors.white70,
@@ -188,13 +277,15 @@ class _ReadingScreenState extends State<ReadingScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.skip_previous, color: Colors.white, size: 32),
+                          icon: const Icon(Icons.skip_previous,
+                              color: Colors.white, size: 32),
                           onPressed: () {
                             context.read<AppBloc>().add(StopTextToSpeech());
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.replay_10, color: Colors.white, size: 32),
+                          icon: const Icon(Icons.replay_10,
+                              color: Colors.white, size: 32),
                           onPressed: () {},
                         ),
                         IconButton(
@@ -216,15 +307,18 @@ class _ReadingScreenState extends State<ReadingScreen> {
                               );
                               return;
                             }
-                            
+
                             if (state.readingState == ReadingState.playing) {
                               context.read<AppBloc>().add(PauseTextToSpeech());
-                            } else if (state.readingState == ReadingState.paused) {
+                            } else if (state.readingState ==
+                                ReadingState.paused) {
                               context.read<AppBloc>().add(ResumeTextToSpeech());
                             } else {
                               if (document.content.isNotEmpty) {
-                                print('🔊 Starting TTS with ${document.content.length} characters');
-                                context.read<AppBloc>().add(StartTextToSpeech(text: document.content));
+                                print(
+                                    '🔊 Starting TTS with ${document.content.length} characters');
+                                context.read<AppBloc>().add(
+                                    StartTextToSpeech(text: document.content));
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
@@ -237,11 +331,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.forward_10, color: Colors.white, size: 32),
+                          icon: const Icon(Icons.forward_10,
+                              color: Colors.white, size: 32),
                           onPressed: () {},
                         ),
                         IconButton(
-                          icon: const Icon(Icons.skip_next, color: Colors.white, size: 32),
+                          icon: const Icon(Icons.skip_next,
+                              color: Colors.white, size: 32),
                           onPressed: () {
                             context.read<AppBloc>().add(StopTextToSpeech());
                           },
@@ -296,13 +392,17 @@ class _ReadingScreenState extends State<ReadingScreen> {
     );
   }
 
-  Widget _buildText(BuildContext context, AppState state, Document document, Color textColor) {
+  // In reading_screen.dart, update the _buildText method to handle different fonts
+
+  Widget _buildText(BuildContext context, AppState state, Document document,
+      Color textColor) {
     if (document.content.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.text_snippet_outlined, size: 64, color: Colors.grey[400]),
+            Icon(Icons.text_snippet_outlined,
+                size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
               'No content available',
@@ -317,45 +417,240 @@ class _ReadingScreenState extends State<ReadingScreen> {
       );
     }
 
-    final words = document.content.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    
+    final words = _textSelectionService.extractWords(document.content);
+
+    // Determine font family based on content
+    String? fontFamily;
+    if (state.useOpenDyslexic) {
+      // Check if content is Latin-based
+      if (_isLatinText(document.content)) {
+        fontFamily = 'OpenDyslexic';
+      } else {
+        // Use system default for non-Latin scripts
+        fontFamily = null;
+      }
+    }
+
     if (state.readingState == ReadingState.idle) {
       return SelectableText(
         document.content,
         style: TextStyle(
-          fontSize: _fontSize,
-          height: 1.8,
-          fontFamily: _useOpenDyslexic ? 'OpenDyslexic' : null,
+          fontSize: state.fontSize,
+          height: state.lineSpacing,
+          fontFamily: fontFamily,
           color: textColor,
-          letterSpacing: _useOpenDyslexic ? 0.5 : 0,
+          letterSpacing: fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
         ),
       );
     }
 
+    // Active reading with word highlighting
     return RichText(
       text: TextSpan(
         children: words.asMap().entries.map((entry) {
           final index = entry.key;
           final word = entry.value;
           final isCurrentWord = index == state.currentWordIndex;
-          
+
           return TextSpan(
             text: '$word ',
             style: TextStyle(
               color: isCurrentWord ? Colors.red : textColor,
-              fontSize: _fontSize,
-              fontFamily: _useOpenDyslexic ? 'OpenDyslexic' : null,
-              height: 1.8,
-              backgroundColor: isCurrentWord 
-                  ? Colors.yellow.withOpacity(0.5) 
-                  : (state.isHighlighted 
-                      ? const Color(0xFFB7B9DA).withOpacity(0.3) 
+              fontSize: state.fontSize,
+              fontFamily: fontFamily,
+              height: state.lineSpacing,
+              backgroundColor: isCurrentWord
+                  ? Colors.yellow.withOpacity(0.5)
+                  : (state.isHighlighted
+                      ? const Color(0xFFB7B9DA).withOpacity(0.2)
                       : null),
               fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.normal,
-              letterSpacing: _useOpenDyslexic ? 0.5 : 0,
+              letterSpacing:
+                  fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  bool _isLatinText(String text) {
+    // Check if text is primarily Latin script
+    final latinPattern = RegExp(r'^[a-zA-Z0-9\s\p{P}]+$', unicode: true);
+    final sample = text.length > 100 ? text.substring(0, 100) : text;
+    return latinPattern.hasMatch(sample);
+  }
+
+  String _findWordAtPosition(
+      BuildContext context, Offset position, List<String> words) {
+    // Simple approximation - in production, use more sophisticated hit testing
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return '';
+
+    // Calculate approximate word index based on position
+    final relativeY = position.dy;
+    final fontSize = context.read<AppBloc>().state.fontSize;
+    final lineSpacing = context.read<AppBloc>().state.lineSpacing;
+    final lineHeight = fontSize * lineSpacing;
+
+    final lineIndex = (relativeY / lineHeight).floor();
+
+    // Rough estimate of words per line (this is simplified)
+    final screenWidth = MediaQuery.of(context).size.width - 48; // padding
+    final avgCharWidth = fontSize * 0.6;
+    final wordsPerLine =
+        (screenWidth / (avgCharWidth * 7)).floor(); // avg 7 chars per word
+
+    final wordIndex = (lineIndex * wordsPerLine).clamp(0, words.length - 1);
+
+    if (wordIndex < words.length) {
+      return _textSelectionService.cleanWord(words[wordIndex]);
+    }
+
+    return '';
+  }
+
+  void _showSyllableDialog(BuildContext context, String word) {
+    final syllables = _syllableService.breakIntoSyllables(word);
+    final formatted = _syllableService.formatSyllables(syllables);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        backgroundColor: const Color(0xFFB789DA),
+        title: Text(
+          word,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 14,
+            fontFamily: 'OpenDyslexic',
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              formatted,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'OpenDyslexic',
+                letterSpacing: 3,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${syllables.length} syllable${syllables.length > 1 ? 's' : ''}',
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                fontFamily: 'OpenDyslexic',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Close',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'OpenDyslexic',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTextOptions(BuildContext context, AppState state) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) => BlocProvider.value(
+        value: context.read<AppBloc>(),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Text Options',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'OpenDyslexic',
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading:
+                      const Icon(Icons.font_download, color: Color(0xFFB789DA)),
+                  title: const Text('Font Settings',
+                      style: TextStyle(fontFamily: 'OpenDyslexic')),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showSettingsDialog(context, state);
+                  },
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.straighten, color: Color(0xFFB789DA)),
+                  title: const Text('Toggle Ruler',
+                      style: TextStyle(fontFamily: 'OpenDyslexic')),
+                  trailing: Switch(
+                    value: state.isRulerEnabled,
+                    activeColor: const Color(0xFFB789DA),
+                    onChanged: (value) {
+                      context.read<AppBloc>().add(ToggleRuler());
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+                ListTile(
+                  leading:
+                      const Icon(Icons.highlight, color: Color(0xFFB789DA)),
+                  title: const Text('Toggle Highlight',
+                      style: TextStyle(fontFamily: 'OpenDyslexic')),
+                  trailing: Switch(
+                    value: state.isHighlighted,
+                    activeColor: const Color(0xFFB789DA),
+                    onChanged: (value) {
+                      context.read<AppBloc>().add(ToggleHighlight());
+                      Navigator.pop(context);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -373,84 +668,333 @@ class _ReadingScreenState extends State<ReadingScreen> {
                 style: TextStyle(fontFamily: 'OpenDyslexic'),
               ),
               content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SwitchListTile(
-                      title: const Text(
-                        'OpenDyslexic Font',
-                        style: TextStyle(fontFamily: 'OpenDyslexic'),
-                      ),
-                      value: _useOpenDyslexic,
-                      activeColor: const Color(0xFFB789DA),
-                      onChanged: (value) {
-                        setState(() {
-                          _useOpenDyslexic = value;
-                        });
-                        this.setState(() {
-                          _useOpenDyslexic = value;
-                        });
-                      },
-                    ),
-                    const Divider(),
-                    Text(
-                      'Font Size: ${_fontSize.toInt()}',
-                      style: const TextStyle(fontFamily: 'OpenDyslexic'),
-                    ),
-                    Slider(
-                      value: _fontSize,
-                      min: 12.0,
-                      max: 32.0,
-                      divisions: 20,
-                      activeColor: const Color(0xFFB789DA),
-                      onChanged: (value) {
-                        setState(() {
-                          _fontSize = value;
-                        });
-                        this.setState(() {
-                          _fontSize = value;
-                        });
-                      },
-                    ),
-                    const Divider(),
-                    BlocBuilder<AppBloc, AppState>(
-                      builder: (context, state) {
-                        return Column(
+                child: BlocBuilder<AppBloc, AppState>(
+                  builder: (context, state) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Font Family Selection
+                        const Text(
+                          'Font Family',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'OpenDyslexic',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
                           children: [
-                            Text(
-                              'Reading Speed: ${(state.readingSpeed * 2).toStringAsFixed(1)}x',
-                              style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                            'OpenDyslexic',
+                            'Arial',
+                            'Times New Roman',
+                            'Georgia',
+                            'Verdana',
+                          ].map((font) {
+                            final isSelected = state.fontFamily == font ||
+                                (font == 'OpenDyslexic' &&
+                                    state.useOpenDyslexic);
+                            return ChoiceChip(
+                              label: Text(font),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                if (font == 'OpenDyslexic') {
+                                  if (!state.useOpenDyslexic) {
+                                    context
+                                        .read<AppBloc>()
+                                        .add(ToggleOpenDyslexic());
+                                  }
+                                } else {
+                                  if (state.useOpenDyslexic) {
+                                    context
+                                        .read<AppBloc>()
+                                        .add(ToggleOpenDyslexic());
+                                  }
+                                  context
+                                      .read<AppBloc>()
+                                      .add(ChangeFontFamily(font));
+                                }
+                              },
+                              selectedColor: const Color(0xFFB789DA),
+                              labelStyle: TextStyle(
+                                color:
+                                    isSelected ? Colors.white : Colors.black87,
+                                fontFamily: 'OpenDyslexic',
+                                fontSize: 12,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 16),
+                        const Divider(),
+
+                        // Font Size
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Font Size',
+                              style: TextStyle(fontFamily: 'OpenDyslexic'),
                             ),
-                            Slider(
-                              value: state.readingSpeed,
-                              min: 0.1,
-                              max: 1.0,
-                              divisions: 9,
-                              activeColor: const Color(0xFFB789DA),
-                              onChanged: (value) {
-                                context.read<AppBloc>().add(AdjustSpeed(value));
+                            Text(
+                              '${state.fontSize.toInt()}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: state.fontSize,
+                          min: 12.0,
+                          max: 32.0,
+                          divisions: 20,
+                          activeColor: const Color(0xFFB789DA),
+                          onChanged: (value) {
+                            context.read<AppBloc>().add(AdjustFontSize(value));
+                          },
+                        ),
+
+                        // Line Spacing
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Line Spacing',
+                              style: TextStyle(fontFamily: 'OpenDyslexic'),
+                            ),
+                            Text(
+                              '${state.lineSpacing.toStringAsFixed(1)}x',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: state.lineSpacing,
+                          min: 1.0,
+                          max: 3.0,
+                          divisions: 20,
+                          activeColor: const Color(0xFFB789DA),
+                          onChanged: (value) {
+                            context
+                                .read<AppBloc>()
+                                .add(AdjustLineSpacing(value));
+                          },
+                        ),
+
+                        // Letter Spacing (only for OpenDyslexic)
+                        if (state.useOpenDyslexic) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Letter Spacing',
+                                style: TextStyle(fontFamily: 'OpenDyslexic'),
+                              ),
+                              Text(
+                                state.letterSpacing.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'OpenDyslexic',
+                                ),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: state.letterSpacing,
+                            min: 0.0,
+                            max: 2.0,
+                            divisions: 20,
+                            activeColor: const Color(0xFFB789DA),
+                            onChanged: (value) {
+                              context
+                                  .read<AppBloc>()
+                                  .add(AdjustLetterSpacing(value));
+                            },
+                          ),
+                        ],
+
+                        const Divider(),
+                        const SizedBox(height: 8),
+
+                        // Overlay Opacity
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Overlay Opacity',
+                              style: TextStyle(fontFamily: 'OpenDyslexic'),
+                            ),
+                            Text(
+                              '${(state.overlayOpacity * 100).toInt()}%',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: state.overlayOpacity,
+                          min: 0.5,
+                          max: 1.0,
+                          divisions: 10,
+                          activeColor: const Color(0xFFB789DA),
+                          onChanged: (value) {
+                            context
+                                .read<AppBloc>()
+                                .add(AdjustOverlayOpacity(value));
+                          },
+                        ),
+
+                        const Divider(),
+                        const SizedBox(height: 8),
+
+                        // Audio Controls
+                        const Text(
+                          'Audio Settings',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontFamily: 'OpenDyslexic',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Reading Speed',
+                              style: TextStyle(fontFamily: 'OpenDyslexic'),
+                            ),
+                            Text(
+                              '${(state.readingSpeed * 2).toStringAsFixed(1)}x',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: state.readingSpeed,
+                          min: 0.1,
+                          max: 1.0,
+                          divisions: 9,
+                          activeColor: const Color(0xFFB789DA),
+                          onChanged: (value) {
+                            context.read<AppBloc>().add(AdjustSpeed(value));
+                          },
+                        ),
+
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Volume',
+                              style: TextStyle(fontFamily: 'OpenDyslexic'),
+                            ),
+                            Text(
+                              '${(state.volume * 100).toInt()}%',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Slider(
+                          value: state.volume,
+                          min: 0.0,
+                          max: 1.0,
+                          divisions: 10,
+                          activeColor: const Color(0xFFB789DA),
+                          onChanged: (value) {
+                            context.read<AppBloc>().add(AdjustVolume(value));
+                          },
+                        ),
+
+                        const Divider(),
+                        const SizedBox(height: 8),
+
+                        // Zoom Control
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Zoom Level',
+                              style: TextStyle(fontFamily: 'OpenDyslexic'),
+                            ),
+                            Text(
+                              '${(state.zoomLevel * 100).toInt()}%',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove),
+                              onPressed: () {
+                                final newZoom =
+                                    (state.zoomLevel - 0.1).clamp(1.0, 3.0);
+                                context
+                                    .read<AppBloc>()
+                                    .add(AdjustZoom(newZoom));
                               },
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Volume: ${(state.volume * 100).toInt()}%',
-                              style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                            Expanded(
+                              child: Slider(
+                                value: state.zoomLevel,
+                                min: 1.0,
+                                max: 3.0,
+                                divisions: 20,
+                                activeColor: const Color(0xFFB789DA),
+                                onChanged: (value) {
+                                  context
+                                      .read<AppBloc>()
+                                      .add(AdjustZoom(value));
+                                },
+                              ),
                             ),
-                            Slider(
-                              value: state.volume,
-                              min: 0.0,
-                              max: 1.0,
-                              divisions: 10,
-                              activeColor: const Color(0xFFB789DA),
-                              onChanged: (value) {
-                                context.read<AppBloc>().add(AdjustVolume(value));
+                            IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: () {
+                                final newZoom =
+                                    (state.zoomLevel + 0.1).clamp(1.0, 3.0);
+                                context
+                                    .read<AppBloc>()
+                                    .add(AdjustZoom(newZoom));
                               },
                             ),
                           ],
-                        );
-                      },
-                    ),
-                  ],
+                        ),
+                        if (state.zoomLevel > 1.0)
+                          Center(
+                            child: TextButton(
+                              onPressed: () {
+                                context.read<AppBloc>().add(ResetZoom());
+                              },
+                              child: const Text(
+                                'Reset Zoom',
+                                style: TextStyle(
+                                  color: Color(0xFFB789DA),
+                                  fontFamily: 'OpenDyslexic',
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ),
               actions: [
@@ -523,6 +1067,7 @@ class _ControlButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,

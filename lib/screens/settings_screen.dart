@@ -1,3 +1,4 @@
+// lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -283,6 +284,14 @@ class SettingsScreen extends StatelessWidget {
                         _showLogoutDialog(context);
                       },
                     ),
+                    const SizedBox(height: 8),
+                    _buildMenuItem(
+                      context: context,
+                      icon: Icons.delete_forever,
+                      title: 'Delete Account',
+                      isLogout: true,
+                      onTap: () => _showDeleteAccountDialog(context),
+                    ),
                   ],
                 ),
               ),
@@ -511,6 +520,294 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    final authService = AuthService();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.warning, color: Colors.red),
+              SizedBox(width: 8),
+              Text(
+                'Delete Account',
+                style: TextStyle(
+                  fontFamily: 'OpenDyslexic',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            'This will permanently delete your account and all associated data including:\n\n• All documents\n• Settings and preferences\n• Reading history\n• User sessions\n\nThis action cannot be undone.',
+            style: TextStyle(
+              fontFamily: 'OpenDyslexic',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontFamily: 'OpenDyslexic',
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                _handleAccountDeletion(context);
+              },
+              child: const Text(
+                'Delete Permanently',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontFamily: 'OpenDyslexic',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _handleAccountDeletion(BuildContext context) async {
+    final authService = AuthService();
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              color: Color(0xFFB789DA),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Deleting account...',
+              style: TextStyle(
+                color: Colors.white,
+                fontFamily: 'OpenDyslexic',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Attempt deletion without password first
+    var result = await authService.deleteAccount();
+
+    if (context.mounted) {
+      Navigator.pop(context); // Close loading
+
+      if (result['success']) {
+        // Success - navigate to login
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account deleted successfully'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AuthLandingScreen(),
+          ),
+          (route) => false,
+        );
+      } else if (result['requiresReauth'] == true) {
+        // Need re-authentication - show password dialog
+        _showReauthDialog(context);
+      } else {
+        // Other error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Failed to delete account'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showReauthDialog(BuildContext context) {
+    final authService = AuthService();
+    final passwordController = TextEditingController();
+    bool obscurePassword = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                'Confirm Identity',
+                style: TextStyle(
+                  fontFamily: 'OpenDyslexic',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'For security, please enter your password to continue:',
+                    style: TextStyle(
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      labelStyle: const TextStyle(fontFamily: 'OpenDyslexic'),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            obscurePassword = !obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    passwordController.dispose();
+                    Navigator.pop(dialogContext);
+                  },
+                  child: const Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.grey,
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final password = passwordController.text.trim();
+                    
+                    if (password.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter your password'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext);
+                    passwordController.dispose();
+
+                    // Show loading
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (context) => const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              color: Color(0xFFB789DA),
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              'Deleting account...',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+
+                    // Delete with password
+                    final result = await authService.deleteAccount(password: password);
+
+                    if (context.mounted) {
+                      Navigator.pop(context); // Close loading
+
+                      if (result['success']) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Account deleted successfully'),
+                            backgroundColor: Colors.green,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+
+                        Navigator.pushAndRemoveUntil(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AuthLandingScreen(),
+                          ),
+                          (route) => false,
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(result['message'] ?? 'Failed to delete account'),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text(
+                    'Confirm & Delete',
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontFamily: 'OpenDyslexic',
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );

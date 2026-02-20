@@ -44,6 +44,8 @@ app.use('/api/documents', require('./routes/documents'));
 app.use('/api/tags', require('./routes/tags'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/dictionary', require('./routes/dictionary'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api', require('./routes/users'));
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -113,3 +115,7 @@ process.on('SIGTERM', () => {
     process.exit(0);
   });
 });
+
+
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));

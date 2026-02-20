@@ -8,6 +8,8 @@ class DocumentModel {
   final DateTime? lastReadDate;
   final List<String> tags;
   final bool isFavorite;
+  final String? detectedLanguage;
+  final String? detectedScript;
 
   DocumentModel({
     this.id,
@@ -19,34 +21,36 @@ class DocumentModel {
     this.lastReadDate,
     this.tags = const [],
     this.isFavorite = false,
+    this.detectedLanguage,
+    this.detectedScript,
   });
 
   Map<String, dynamic> toJson() => {
-    if (id != null) '_id': id,
-    'userId': userId,
-    'fileName': name,
-    'documentText': content,
-    if (filePath != null) 'filePath': filePath,
-    'uploadedDate': uploadedDate.toIso8601String(),
-    if (lastReadDate != null) 'lastReadDate': lastReadDate!.toIso8601String(),
-    'tags': tags,
-    'isFavorite': isFavorite,
-  };
+        if (id != null) '_id': id,
+        'userId': userId,
+        'fileName': name,
+        'documentText': content,
+        if (filePath != null) 'filePath': filePath,
+        'uploadedDate': uploadedDate.toIso8601String(),
+        if (lastReadDate != null)
+          'lastReadDate': lastReadDate!.toIso8601String(),
+        'tags': tags,
+        'isFavorite': isFavorite,
+      };
 
   factory DocumentModel.fromJson(Map<String, dynamic> json) => DocumentModel(
-    id: json['_id']?.toString(),
-    userId: json['userId'] ?? '',
-    name: json['fileName'] ?? 'Untitled',
-    content: json['documentText'] ?? '',
-    filePath: json['filePath'],
-    uploadedDate: json['uploadedDate'] != null 
-        ? DateTime.parse(json['uploadedDate']) 
-        : DateTime.now(),
-    lastReadDate: json['lastReadDate'] != null 
-        ? DateTime.parse(json['lastReadDate']) 
-        : null,
-    tags: List<String>.from(json['tags'] ?? []),
-    isFavorite: json['isFavorite'] ?? false,
-  );
+        id: json['_id']?.toString(),
+        userId: json['userId'] ?? '',
+        name: json['fileName'] ?? 'Untitled',
+        content: json['documentText'] ?? '',
+        filePath: json['filePath'],
+        uploadedDate: json['uploadedDate'] != null
+            ? DateTime.parse(json['uploadedDate'])
+            : DateTime.now(),
+        lastReadDate: json['lastReadDate'] != null
+            ? DateTime.parse(json['lastReadDate'])
+            : null,
+        tags: List<String>.from(json['tags'] ?? []),
+        isFavorite: json['isFavorite'] ?? false,
+      );
 }
-
