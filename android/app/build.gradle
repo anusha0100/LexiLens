@@ -65,4 +65,9 @@ dependencies {
     implementation 'androidx.multidex:multidex:2.0.1'
     implementation(platform("com.google.firebase:firebase-bom:34.7.0"))
     implementation("com.google.firebase:firebase-auth")
+    // ML Kit text recognition support, include devanagari model explicitly
+    // base text recognition is already pulled in by the plugin
+    // add only the Devanagari language package at the version specified
+    // in the plugin documentation (currently 16.0.1)
+    implementation 'com.google.mlkit:text-recognition-devanagari:16.0.1'
 }

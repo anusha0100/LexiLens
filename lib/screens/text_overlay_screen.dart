@@ -66,6 +66,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   bool _shouldUseOpenDyslexic() {
+    // only enable OpenDyslexic for languages that use a Latin script
     final latinLanguages = [
       'English',
       'Spanish',
@@ -82,6 +83,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   Widget _buildLanguageInfoBanner() {
+    // if we aren't using the OpenDyslexic font we still want the user to
+    // know what script/language was detected so they understand why the
+    // system font (which supports Devanagari) is being used.
     if (!_canUseOpenDyslexic) {
       return Container(
         width: double.infinity,
@@ -93,11 +97,12 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Detected: $_detectedLanguage ($_detectedScript script). Using system font for proper rendering.',
+                'Detected: $_detectedLanguage ($_detectedScript script).',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
-                  fontFamily: 'OpenDyslexic',
+                  // do not specify OpenDyslexic here so the system font can
+                  // render Devanagari properly when needed
                 ),
               ),
             ),
@@ -334,20 +339,24 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Text Overlay',
             style: TextStyle(
               color: Colors.white,
               fontSize: 18,
-              fontFamily: 'OpenDyslexic',
+              fontFamily: _detectedScript == 'Devanagari'
+                  ? 'NotoSansDevanagari'
+                  : 'OpenDyslexic',
             ),
           ),
           Text(
             'Language: $_detectedLanguage',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white70,
               fontSize: 12,
-              fontFamily: 'OpenDyslexic',
+              fontFamily: _detectedScript == 'Devanagari'
+                  ? 'NotoSansDevanagari'
+                  : 'OpenDyslexic',
             ),
           ),
         ],
@@ -518,8 +527,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                     useOpenDyslexic: _useOpenDyslexic,
                     fontSize: _fontSize,
                     overlayOpacity: state.overlayOpacity,
-                    detectedLanguage: _detectedLanguage,
-                  ),
+                    detectedLanguage: _detectedLanguage,                    detectedScript: _detectedScript,                  ),
                 ),
               ),
             ),
@@ -542,10 +550,12 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontSize: 11,
-              fontFamily: 'OpenDyslexic',
+              fontFamily: _detectedScript == 'Devanagari'
+                  ? 'NotoSansDevanagari'
+                  : 'OpenDyslexic',
             ),
           ),
         ],
@@ -737,6 +747,7 @@ class OverlayStyle extends CustomPainter {
   final bool useOpenDyslexic;
   final double fontSize;
   final String? detectedLanguage;
+  final String? detectedScript;
 
   OverlayStyle({
     required this.overlayOpacity,
@@ -748,6 +759,7 @@ class OverlayStyle extends CustomPainter {
     required this.useOpenDyslexic,
     required this.fontSize,
     this.detectedLanguage,
+    this.detectedScript,
   });
 
   @override
@@ -756,9 +768,11 @@ class OverlayStyle extends CustomPainter {
     final scaleY = imageDisplaySize.height / imageActualSize.height;
     int globalWordIndex = 0;
 
-    
+    // determine which font family should be used for text rendering.
     final shouldUseOpenDyslexic =
         useOpenDyslexic && _isLatinLanguage(detectedLanguage);
+    final shouldUseDevanagariFont =
+        !shouldUseOpenDyslexic && detectedScript == 'Devanagari';
 
     for (final block in textBlocks) {
       for (final line in block.lines) {
@@ -800,7 +814,9 @@ class OverlayStyle extends CustomPainter {
         final textStyle = TextStyle(
           fontSize: calculatedFontSize,
           fontWeight: FontWeight.w500,
-          fontFamily: shouldUseOpenDyslexic ? 'OpenDyslexic' : null,
+          fontFamily: shouldUseOpenDyslexic
+              ? 'OpenDyslexic'
+              : (shouldUseDevanagariFont ? 'NotoSansDevanagari' : null),
           height: 1.0,
         );
 
@@ -828,7 +844,9 @@ class OverlayStyle extends CustomPainter {
             color: isCurrentWord ? Colors.red.shade800 : Colors.black87,
             fontSize: adjustedFontSize,
             fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.w500,
-            fontFamily: shouldUseOpenDyslexic ? 'OpenDyslexic' : null,
+            fontFamily: shouldUseOpenDyslexic
+                ? 'OpenDyslexic'
+                : (shouldUseDevanagariFont ? 'NotoSansDevanagari' : null),
             height: 1.0,
             letterSpacing: shouldUseOpenDyslexic ? 0.5 : 0,
           );

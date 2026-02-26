@@ -36,6 +36,8 @@ class DocumentModel {
           'lastReadDate': lastReadDate!.toIso8601String(),
         'tags': tags,
         'isFavorite': isFavorite,
+        if (detectedLanguage != null) 'detectedLanguage': detectedLanguage,
+        if (detectedScript != null) 'detectedScript': detectedScript,
       };
 
   factory DocumentModel.fromJson(Map<String, dynamic> json) => DocumentModel(
@@ -52,5 +54,7 @@ class DocumentModel {
             : null,
         tags: List<String>.from(json['tags'] ?? []),
         isFavorite: json['isFavorite'] ?? false,
+        detectedLanguage: json['detectedLanguage'],
+        detectedScript: json['detectedScript'],
       );
 }

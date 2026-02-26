@@ -905,6 +905,35 @@ class _ReadingScreenState extends State<ReadingScreen> {
                           },
                         ),
 
+                        // Voice selection (if voices are loaded)
+                        if (state.availableVoices.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Voice',
+                            style: TextStyle(fontFamily: 'OpenDyslexic'),
+                          ),
+                          const SizedBox(height: 4),
+                          DropdownButton<String>(
+                            value: state.selectedVoice,
+                            hint: const Text('Default'),
+                            items: state.availableVoices
+                                .map((v) => DropdownMenuItem(
+                                      value: v,
+                                      child: Text(
+                                        v,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ))
+                                .toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                context.read<AppBloc>().add(SelectVoice(val));
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
                         const Divider(),
                         const SizedBox(height: 8),
 

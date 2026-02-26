@@ -6,6 +6,7 @@ class TTSService {
   TTSService._internal();
 
   final FlutterTts _flutterTts = FlutterTts();
+  List<dynamic>? _availableVoices;
   bool _isPlaying = false;
   bool _isPaused = false;
   String _currentText = '';
@@ -21,6 +22,13 @@ class TTSService {
   int get currentWordIndex => _currentWordIndex;
 
   Future<void> initialize() async {
+    // fetch voices early so that they are available for language switching
+    try {
+      _availableVoices = await _flutterTts.getVoices;
+    } catch (_) {
+      _availableVoices = [];
+    }
+
     await _flutterTts.setLanguage("en-US");
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setVolume(1.0);
@@ -68,7 +76,24 @@ class TTSService {
     _currentText = text;
     _words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     _currentWordIndex = 0;
-    
+
+    // choose language/voice based on text content
+    if (_containsDevanagari(text)) {
+      await _flutterTts.setLanguage('hi-IN');
+      // try to pick a Hindi voice from the available list
+      if (_availableVoices != null) {
+        final hindiVoice = _availableVoices!.firstWhere(
+            (v) => v is Map &&
+                (v['locale']?.toString().startsWith('hi') ?? false),
+            orElse: () => null);
+        if (hindiVoice != null && hindiVoice is Map && hindiVoice['name'] != null) {
+          await _flutterTts.setVoice({'name': hindiVoice['name']});
+        }
+      }
+    } else {
+      await _flutterTts.setLanguage('en-US');
+    }
+
     await _flutterTts.speak(text);
   }
 
@@ -94,6 +119,10 @@ class TTSService {
   }
   String getCurrentText() => _currentText;
 
+  bool _containsDevanagari(String text) {
+    return RegExp(r'[\u0900-\u097F]').hasMatch(text);
+  }
+
   Future<void> stop() async {
     await _flutterTts.stop();
     _isPlaying = false;
@@ -103,6 +132,22 @@ class TTSService {
 
   Future<void> setSpeed(double speed) async {
     await _flutterTts.setSpeechRate(speed);
+  }
+
+  /// Returns the list of voices provided by the platform TTS engine.
+  Future<List<dynamic>?> getAvailableVoices() async {
+    _availableVoices ??= await _flutterTts.getVoices;
+    return _availableVoices;
+  }
+
+  /// Manually set the TTS language (e.g. 'en-US', 'hi-IN').
+  Future<void> setLanguage(String lang) async {
+    await _flutterTts.setLanguage(lang);
+  }
+
+  /// Manually set a specific voice by name (platform-dependent).
+  Future<void> setVoiceByName(String name) async {
+    await _flutterTts.setVoice({'name': name});
   }
 
   Future<void> setVolume(double volume) async {

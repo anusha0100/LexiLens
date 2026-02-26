@@ -203,6 +203,11 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       final text = event.text ?? 
                    state.currentDocument?.content ?? 
                    "No text available to read.";
+
+      // if user has selected a voice override, apply it before speaking
+      if (state.selectedVoice != null) {
+        await _ttsService.setVoiceByName(state.selectedVoice!);
+      }
       
       print('Starting TTS');
       print('Text length: ${text.length}');
@@ -235,6 +240,21 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     on<ResumeTextToSpeech>((event, emit) async {
       await _ttsService.resume();
       emit(state.copyWith(readingState: ReadingState.playing));
+    });
+
+    // Voice loading/selection
+    on<LoadAvailableVoices>((event, emit) async {
+      final voices = await _ttsService.getAvailableVoices() ?? [];
+      final names = voices.map((v) {
+        if (v is Map) return v['name']?.toString() ?? '';
+        return v.toString();
+      }).where((n) => n.isNotEmpty).toList();
+      emit(state.copyWith(availableVoices: names));
+    });
+
+    on<SelectVoice>((event, emit) async {
+      emit(state.copyWith(selectedVoice: event.voice));
+      await _saveUserSetting('selected_voice', event.voice);
     });
 
     // Control Events
@@ -425,6 +445,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
           
           // User info
           userName: settings['user_name']?.toString() ?? await _authService.getUsername(),
+          selectedVoice: settings['selected_voice']?.toString(),
         ));
       } catch (e) {
         print('Error loading settings: $e');
@@ -434,7 +455,9 @@ class AppBloc extends Bloc<AppEvent, AppState> {
 
   Future<void> _initializeTTS() async {
     await _ttsService.initialize();
-    
+    // load voices into state so UI can show them
+    add(LoadAvailableVoices());
+
     _ttsService.onStart = () {
       add(UpdateReadingState(ReadingState.playing));
     };

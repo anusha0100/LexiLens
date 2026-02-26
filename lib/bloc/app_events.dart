@@ -117,6 +117,17 @@ class UpdateWordIndex extends AppEvent {
   List<Object?> get props => [index];
 }
 
+// Voice events
+class LoadAvailableVoices extends AppEvent {}
+
+class SelectVoice extends AppEvent {
+  final String voice;
+  SelectVoice(this.voice);
+
+  @override
+  List<Object?> get props => [voice];
+}
+
 // Control Events
 class ToggleSound extends AppEvent {}
 class ToggleBookmark extends AppEvent {}

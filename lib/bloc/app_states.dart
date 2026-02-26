@@ -32,6 +32,8 @@ class AppState extends Equatable {
   final bool isRulerEnabled;
   final double rulerPosition;
   final double zoomLevel;
+  final List<String> availableVoices;
+  final String? selectedVoice;
   
   const AppState({
     this.currentTab = AppTab.home,
@@ -60,6 +62,9 @@ class AppState extends Equatable {
     this.isRulerEnabled = false,
     this.rulerPosition = 0.5,
     this.zoomLevel = 1.0,
+    // voice settings
+    this.availableVoices = const [],
+    this.selectedVoice,
   });
 
   @override
@@ -89,7 +94,8 @@ class AppState extends Equatable {
     isRulerEnabled,
     rulerPosition,
     zoomLevel,
-  ];
+      availableVoices,
+      selectedVoice,
 
   AppState copyWith({
     AppTab? currentTab,
@@ -144,6 +150,8 @@ class AppState extends Equatable {
       isRulerEnabled: isRulerEnabled ?? this.isRulerEnabled,
       rulerPosition: rulerPosition ?? this.rulerPosition,
       zoomLevel: zoomLevel ?? this.zoomLevel,
+      availableVoices: availableVoices ?? this.availableVoices,
+      selectedVoice: selectedVoice ?? this.selectedVoice,
     );
   }
 }
