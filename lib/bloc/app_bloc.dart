@@ -221,7 +221,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
         readingState: ReadingState.playing,
         currentWordIndex: 0,
       ));
-      await _ttsService.speak(text);
+      await _ttsService.speak(text, detectedLanguage: event.detectedLanguage);
     });
 
     on<StopTextToSpeech>((event, emit) async {

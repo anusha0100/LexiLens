@@ -91,10 +91,11 @@ class DeleteDocumentTag extends AppEvent {
 // Reading/TTS Events
 class StartTextToSpeech extends AppEvent {
   final String? text;
-  StartTextToSpeech({this.text});
+  final String? detectedLanguage;
+  StartTextToSpeech({this.text, this.detectedLanguage});
   
   @override
-  List<Object?> get props => [text];
+  List<Object?> get props => [text, detectedLanguage];
 }
 
 class StopTextToSpeech extends AppEvent {}

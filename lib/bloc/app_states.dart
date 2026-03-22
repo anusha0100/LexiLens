@@ -94,8 +94,9 @@ class AppState extends Equatable {
     isRulerEnabled,
     rulerPosition,
     zoomLevel,
-      availableVoices,
-      selectedVoice,
+    availableVoices,
+    selectedVoice,
+  ];
 
   AppState copyWith({
     AppTab? currentTab,
@@ -123,6 +124,8 @@ class AppState extends Equatable {
     bool? isRulerEnabled,
     double? rulerPosition,
     double? zoomLevel,
+    List<String>? availableVoices,
+    String? selectedVoice,
   }) {
     return AppState(
       currentTab: currentTab ?? this.currentTab,

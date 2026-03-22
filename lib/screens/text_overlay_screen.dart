@@ -165,7 +165,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     } else if (state.readingState == ReadingState.paused) {
       context.read<AppBloc>().add(ResumeTextToSpeech());
     } else {
-      context.read<AppBloc>().add(StartTextToSpeech(text: _extractedText));
+      context.read<AppBloc>().add(StartTextToSpeech(text: _extractedText, detectedLanguage: _detectedLanguage));
     }
   }
 

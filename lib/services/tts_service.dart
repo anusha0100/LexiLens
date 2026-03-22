@@ -70,19 +70,31 @@ class TTSService {
     });
   }
 
-  Future<void> speak(String text) async {
+  Future<void> speak(String text, {String? detectedLanguage}) async {
     if (text.isEmpty) return;
     await stop();
     _currentText = text;
     _words = text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
     _currentWordIndex = 0;
 
-    // choose language/voice based on text content
-    if (_containsDevanagari(text)) {
-      await _setTtsLanguageAndVoice('hi-IN');
+    // choose language/voice based on detected language or text content
+    String languageCode = 'en-US'; // default
+    if (detectedLanguage != null) {
+      languageCode = _getLanguageCodeFromName(detectedLanguage);
     } else {
-      await _setTtsLanguageAndVoice('en-US');
+      // fallback to text-based detection
+      if (_containsDevanagari(text)) {
+        languageCode = 'hi-IN';
+      } else if (_looksLikeFrench(text)) {
+        languageCode = 'fr-FR';
+      } else if (_looksLikeGerman(text)) {
+        languageCode = 'de-DE';
+      } else if (_looksLikeSpanish(text)) {
+        languageCode = 'es-ES';
+      }
     }
+
+    await _setTtsLanguageAndVoice(languageCode);
 
     await _flutterTts.speak(text);
   }
@@ -102,7 +114,7 @@ class TTSService {
     }
   }
 
-  Map<String, dynamic>? _findPreferredVoice(String languageCode) {
+  Map<String, String>? _findPreferredVoice(String languageCode) {
     if (_availableVoices == null) return null;
 
     final code = languageCode.split('-').first.toLowerCase();
@@ -112,7 +124,7 @@ class TTSService {
       if (voice is Map && voice['locale'] != null) {
         final locale = voice['locale'].toString().toLowerCase();
         if (locale.startsWith(code)) {
-          return Map<String, dynamic>.from(voice);
+          return {'name': voice['name']?.toString() ?? ''};
         }
       }
     }
@@ -122,10 +134,19 @@ class TTSService {
       if (voice is Map && voice['name'] != null) {
         final name = voice['name'].toString().toLowerCase();
         if (code == 'hi' && name.contains('hindi')) {
-          return {'name': voice['name']};
+          return {'name': voice['name'].toString()};
         }
         if (code == 'en' && name.contains('english')) {
-          return {'name': voice['name']};
+          return {'name': voice['name'].toString()};
+        }
+        if (code == 'fr' && name.contains('french')) {
+          return {'name': voice['name'].toString()};
+        }
+        if (code == 'de' && name.contains('german')) {
+          return {'name': voice['name'].toString()};
+        }
+        if (code == 'es' && name.contains('spanish')) {
+          return {'name': voice['name'].toString()};
         }
       }
     }
@@ -157,6 +178,43 @@ class TTSService {
 
   bool _containsDevanagari(String text) {
     return RegExp(r'[\u0900-\u097F]').hasMatch(text);
+  }
+
+  String _getLanguageCodeFromName(String language) {
+    switch (language.toLowerCase()) {
+      case 'hindi':
+        return 'hi-IN';
+      case 'french':
+        return 'fr-FR';
+      case 'german':
+        return 'de-DE';
+      case 'spanish':
+        return 'es-ES';
+      case 'english':
+      default:
+        return 'en-US';
+    }
+  }
+
+  bool _looksLikeFrench(String text) {
+    final frenchPatterns = ['le ', 'la ', 'les ', 'de ', 'du ', 'des ', 'et ', 'est ', 'pour '];
+    final lowerText = text.toLowerCase();
+    return frenchPatterns.any((pattern) => lowerText.contains(pattern)) ||
+           RegExp(r'[àâæçéèêëïîôùûüÿœ]').hasMatch(text);
+  }
+
+  bool _looksLikeGerman(String text) {
+    final germanPatterns = ['der ', 'die ', 'das ', 'den ', 'dem ', 'des ', 'und ', 'ist ', 'nicht '];
+    final lowerText = text.toLowerCase();
+    return germanPatterns.any((pattern) => lowerText.contains(pattern)) ||
+           RegExp(r'[äöüß]').hasMatch(text);
+  }
+
+  bool _looksLikeSpanish(String text) {
+    final spanishPatterns = ['el ', 'la ', 'los ', 'las ', 'que ', 'de ', 'para ', 'con '];
+    final lowerText = text.toLowerCase();
+    return spanishPatterns.any((pattern) => lowerText.contains(pattern)) ||
+           RegExp(r'[áéíóúñü]').hasMatch(text);
   }
 
   Future<void> stop() async {
