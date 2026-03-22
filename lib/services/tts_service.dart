@@ -79,22 +79,58 @@ class TTSService {
 
     // choose language/voice based on text content
     if (_containsDevanagari(text)) {
-      await _flutterTts.setLanguage('hi-IN');
-      // try to pick a Hindi voice from the available list
-      if (_availableVoices != null) {
-        final hindiVoice = _availableVoices!.firstWhere(
-            (v) => v is Map &&
-                (v['locale']?.toString().startsWith('hi') ?? false),
-            orElse: () => null);
-        if (hindiVoice != null && hindiVoice is Map && hindiVoice['name'] != null) {
-          await _flutterTts.setVoice({'name': hindiVoice['name']});
-        }
-      }
+      await _setTtsLanguageAndVoice('hi-IN');
     } else {
-      await _flutterTts.setLanguage('en-US');
+      await _setTtsLanguageAndVoice('en-US');
     }
 
     await _flutterTts.speak(text);
+  }
+
+  Future<void> _setTtsLanguageAndVoice(String languageCode) async {
+    await _flutterTts.setLanguage(languageCode);
+
+    if (_availableVoices == null) {
+      _availableVoices = await _flutterTts.getVoices;
+    }
+
+    if (_availableVoices != null && _availableVoices!.isNotEmpty) {
+      final preferredVoice = _findPreferredVoice(languageCode);
+      if (preferredVoice != null) {
+        await _flutterTts.setVoice(preferredVoice);
+      }
+    }
+  }
+
+  Map<String, dynamic>? _findPreferredVoice(String languageCode) {
+    if (_availableVoices == null) return null;
+
+    final code = languageCode.split('-').first.toLowerCase();
+
+    // 1) exact locale match (hi-IN or hi)
+    for (final voice in _availableVoices!) {
+      if (voice is Map && voice['locale'] != null) {
+        final locale = voice['locale'].toString().toLowerCase();
+        if (locale.startsWith(code)) {
+          return Map<String, dynamic>.from(voice);
+        }
+      }
+    }
+
+    // 2) fallback on named voice hints
+    for (final voice in _availableVoices!) {
+      if (voice is Map && voice['name'] != null) {
+        final name = voice['name'].toString().toLowerCase();
+        if (code == 'hi' && name.contains('hindi')) {
+          return {'name': voice['name']};
+        }
+        if (code == 'en' && name.contains('english')) {
+          return {'name': voice['name']};
+        }
+      }
+    }
+
+    return null;
   }
 
   Future<void> pause() async {

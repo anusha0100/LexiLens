@@ -100,13 +100,14 @@ class OCRService {
     
     
     if (script == 'Devanagari' || _containsDevanagari(text)) {
-      
       if (_looksLikeMarathi(text)) return 'Marathi';
       if (_looksLikeSanskrit(text)) return 'Sanskrit';
-      return 'Hindi'; 
+      if (_looksLikeHindi(text)) return 'Hindi';
+      // If we have Devanagari text and not Marathi/Sanskrit explicitly,
+      // default to Hindi for overlay and TTS coherence.
+      return 'Hindi';
     }
-    
-    
+
     if (_looksLikeSpanish(text)) return 'Spanish';
     if (_looksLikeFrench(text)) return 'French';
     if (_looksLikeGerman(text)) return 'German';
