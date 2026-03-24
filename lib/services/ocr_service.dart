@@ -36,18 +36,25 @@ class OCRService {
       RecognizedText recognizedText;
       String detectedScript;
       
-      if (devanagariResult.text.length > latinResult.text.length) {
+      final isDevanagariText = _containsDevanagari(devanagariResult.text);
+      final isLatinText = latinResult.text.trim().isNotEmpty;
+
+      if (isDevanagariText && devanagariResult.text.length > latinResult.text.length) {
         recognizedText = devanagariResult;
         detectedScript = 'Devanagari';
         print('✅ Using Devanagari script (${devanagariResult.text.length} chars)');
-      } else if (latinResult.text.length > 10) {
+      } else if (isLatinText) {
         recognizedText = latinResult;
         detectedScript = 'Latin';
         print('✅ Using Latin script (${latinResult.text.length} chars)');
-      } else if (devanagariResult.text.length > 0) {
+      } else if (isDevanagariText) {
         recognizedText = devanagariResult;
         detectedScript = 'Devanagari';
         print('✅ Using Devanagari script as fallback');
+      } else if (devanagariResult.text.trim().isNotEmpty) {
+        recognizedText = devanagariResult;
+        detectedScript = 'Devanagari';
+        print('⚠️ Using Devanagari script as final fallback despite no Devanagari chars');
       } else {
         recognizedText = latinResult;
         detectedScript = 'Latin';

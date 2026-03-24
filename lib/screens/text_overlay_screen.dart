@@ -795,7 +795,6 @@ class OverlayStyle extends CustomPainter {
         final isLineActive = currentWordIndex >= lineStartIndex &&
             currentWordIndex < lineEndIndex;
 
-        
         final backgroundPaint = Paint()
           ..color = const Color(0xFFEEEEEE).withOpacity(overlayOpacity)
           ..style = PaintingStyle.fill;
@@ -807,16 +806,71 @@ class OverlayStyle extends CustomPainter {
 
         canvas.drawRRect(bgRect, backgroundPaint);
 
-        
         final calculatedFontSize = (lineHeight * 0.5).clamp(8.0, fontSize);
 
-      
+        final defaultFontFamily = shouldUseOpenDyslexic
+            ? 'OpenDyslexic'
+            : (shouldUseDevanagariFont ? 'NotoSansDevanagari' : null);
+
+        if (line.elements.isNotEmpty) {
+          // Use OCR-provided per-word wordboxes for exact overlap alignment.
+          for (int wordIdx = 0; wordIdx < line.elements.length; wordIdx++) {
+            final element = line.elements[wordIdx];
+            final word = element.text;
+            final wordBox = element.boundingBox;
+            if (wordBox == null) continue;
+
+            final wordLeft = wordBox.left * scaleX;
+            final wordTop = wordBox.top * scaleY;
+            final wordWidth = wordBox.width * scaleX;
+            final wordHeight = wordBox.height * scaleY;
+
+            final isCurrentWord =
+                isLineActive && (globalWordIndex + wordIdx) == currentWordIndex;
+
+            final wordStyle = TextStyle(
+              color: isCurrentWord ? Colors.red.shade800 : Colors.black87,
+              fontSize: wordHeight.clamp(7.0, fontSize),
+              fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.w500,
+              fontFamily: defaultFontFamily,
+              height: 1.0,
+              letterSpacing: shouldUseOpenDyslexic ? 0.5 : 0,
+            );
+
+            final textSpan = TextSpan(text: word, style: wordStyle);
+            final textPainter = TextPainter(
+              text: textSpan,
+              textDirection: TextDirection.ltr,
+              maxLines: 1,
+            );
+            textPainter.layout(maxWidth: wordWidth);
+
+            if (isCurrentWord) {
+              final highlightPaint = Paint()
+                ..color = Colors.yellow.withOpacity(0.6)
+                ..style = PaintingStyle.fill;
+
+              final highlightRect = RRect.fromRectAndRadius(
+                Rect.fromLTWH(wordLeft - 2, wordTop, wordWidth + 4, wordHeight),
+                const Radius.circular(2),
+              );
+
+              canvas.drawRRect(highlightRect, highlightPaint);
+            }
+
+            final textY = wordTop + (wordHeight - textPainter.height) / 2;
+            textPainter.paint(canvas, Offset(wordLeft, textY));
+          }
+
+          globalWordIndex += line.elements.length;
+          continue;
+        }
+
+        // Fallback aligned draw when per-word boxes are unavailable
         final textStyle = TextStyle(
           fontSize: calculatedFontSize,
           fontWeight: FontWeight.w500,
-          fontFamily: shouldUseOpenDyslexic
-              ? 'OpenDyslexic'
-              : (shouldUseDevanagariFont ? 'NotoSansDevanagari' : null),
+          fontFamily: defaultFontFamily,
           height: 1.0,
         );
 
@@ -844,9 +898,7 @@ class OverlayStyle extends CustomPainter {
             color: isCurrentWord ? Colors.red.shade800 : Colors.black87,
             fontSize: adjustedFontSize,
             fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.w500,
-            fontFamily: shouldUseOpenDyslexic
-                ? 'OpenDyslexic'
-                : (shouldUseDevanagariFont ? 'NotoSansDevanagari' : null),
+            fontFamily: defaultFontFamily,
             height: 1.0,
             letterSpacing: shouldUseOpenDyslexic ? 0.5 : 0,
           );
