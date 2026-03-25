@@ -34,6 +34,8 @@ class AppState extends Equatable {
   final double zoomLevel;
   final List<String> availableVoices;
   final String? selectedVoice;
+  final bool isExporting;
+  final bool isSharing;
   
   const AppState({
     this.currentTab = AppTab.home,
@@ -65,6 +67,9 @@ class AppState extends Equatable {
     // voice settings
     this.availableVoices = const [],
     this.selectedVoice,
+    // export/share settings
+    this.isExporting = false,
+    this.isSharing = false,
   });
 
   @override
@@ -96,6 +101,8 @@ class AppState extends Equatable {
     zoomLevel,
     availableVoices,
     selectedVoice,
+    isExporting,
+    isSharing,
   ];
 
   AppState copyWith({
@@ -126,6 +133,8 @@ class AppState extends Equatable {
     double? zoomLevel,
     List<String>? availableVoices,
     String? selectedVoice,
+    bool? isExporting,
+    bool? isSharing,
   }) {
     return AppState(
       currentTab: currentTab ?? this.currentTab,
@@ -155,6 +164,8 @@ class AppState extends Equatable {
       zoomLevel: zoomLevel ?? this.zoomLevel,
       availableVoices: availableVoices ?? this.availableVoices,
       selectedVoice: selectedVoice ?? this.selectedVoice,
+      isExporting: isExporting ?? this.isExporting,
+      isSharing: isSharing ?? this.isSharing,
     );
   }
 }

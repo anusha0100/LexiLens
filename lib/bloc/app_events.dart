@@ -256,3 +256,62 @@ class UpdateUserSetting extends AppEvent {
 
 // Upload Events
 class UploadPDF extends AppEvent {}
+
+// Document Sharing & Export Events
+class ExportDocumentAsPDF extends AppEvent {
+  final String documentName;
+  final String content;
+  final String? detectedLanguage;
+
+  ExportDocumentAsPDF({
+    required this.documentName,
+    required this.content,
+    this.detectedLanguage,
+  });
+
+  @override
+  List<Object?> get props => [documentName, content, detectedLanguage];
+}
+
+class ExportDocumentAsText extends AppEvent {
+  final String documentName;
+  final String content;
+
+  ExportDocumentAsText({
+    required this.documentName,
+    required this.content,
+  });
+
+  @override
+  List<Object?> get props => [documentName, content];
+}
+
+class ShareDocument extends AppEvent {
+  final String documentName;
+  final String content;
+  final String format; // 'pdf' or 'text'
+  final String? detectedLanguage;
+
+  ShareDocument({
+    required this.documentName,
+    required this.content,
+    required this.format,
+    this.detectedLanguage,
+  });
+
+  @override
+  List<Object?> get props => [documentName, content, format, detectedLanguage];
+}
+
+class ShareDocumentAsText extends AppEvent {
+  final String documentName;
+  final String content;
+
+  ShareDocumentAsText({
+    required this.documentName,
+    required this.content,
+  });
+
+  @override
+  List<Object?> get props => [documentName, content];
+}

@@ -4,6 +4,7 @@ import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/services/tts_service.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/services/auth_service.dart';
+import 'package:lexilens/services/document_export_service.dart';
 import 'package:lexilens/models/document_model.dart';
 import 'package:lexilens/models/document_tag.dart';
 
@@ -374,6 +375,94 @@ class AppBloc extends Bloc<AppEvent, AppState> {
 
     on<LoadUserSettings>((event, emit) async {
       await _loadUserSettings(emit);
+    });
+
+    // Document Export & Sharing Events
+    on<ExportDocumentAsPDF>((event, emit) async {
+      emit(state.copyWith(isExporting: true));
+      try {
+        final exportService = DocumentExportService();
+        final pdfFile = await exportService.exportAsPDF(
+          documentName: event.documentName,
+          content: event.content,
+          detectedLanguage: event.detectedLanguage,
+        );
+
+        if (pdfFile != null) {
+          print('✅ PDF exported successfully');
+          emit(state.copyWith(isExporting: false));
+        } else {
+          throw Exception('Failed to export PDF');
+        }
+      } catch (e) {
+        print('❌ PDF export error: $e');
+        emit(state.copyWith(isExporting: false));
+      }
+    });
+
+    on<ExportDocumentAsText>((event, emit) async {
+      emit(state.copyWith(isExporting: true));
+      try {
+        final exportService = DocumentExportService();
+        final textFile = await exportService.exportAsText(
+          documentName: event.documentName,
+          content: event.content,
+        );
+
+        if (textFile != null) {
+          print('✅ Text file exported successfully');
+          emit(state.copyWith(isExporting: false));
+        } else {
+          throw Exception('Failed to export text');
+        }
+      } catch (e) {
+        print('❌ Text export error: $e');
+        emit(state.copyWith(isExporting: false));
+      }
+    });
+
+    on<ShareDocument>((event, emit) async {
+      emit(state.copyWith(isSharing: true));
+      try {
+        final exportService = DocumentExportService();
+        final success = await exportService.shareDocument(
+          documentName: event.documentName,
+          content: event.content,
+          format: event.format,
+          detectedLanguage: event.detectedLanguage,
+        );
+
+        if (success) {
+          print('✅ Document shared successfully');
+        } else {
+          print('⚠️ Document sharing dismissed or failed');
+        }
+        emit(state.copyWith(isSharing: false));
+      } catch (e) {
+        print('❌ Share error: $e');
+        emit(state.copyWith(isSharing: false));
+      }
+    });
+
+    on<ShareDocumentAsText>((event, emit) async {
+      emit(state.copyWith(isSharing: true));
+      try {
+        final exportService = DocumentExportService();
+        final success = await exportService.shareText(
+          documentName: event.documentName,
+          content: event.content,
+        );
+
+        if (success) {
+          print('✅ Text shared successfully');
+        } else {
+          print('⚠️ Text sharing dismissed or failed');
+        }
+        emit(state.copyWith(isSharing: false));
+      } catch (e) {
+        print('❌ Text share error: $e');
+        emit(state.copyWith(isSharing: false));
+      }
     });
 
     on<UploadPDF>((event, emit) {

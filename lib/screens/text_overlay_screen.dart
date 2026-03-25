@@ -459,14 +459,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                   _buildBottomButton(
                     icon: Icons.share,
                     label: 'Share',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Share feature coming soon!'),
-                          backgroundColor: Color(0xFFB789DA),
-                        ),
-                      );
-                    },
+                    onTap: () => _showShareOptions(context),
                   ),
                 ],
               ),
@@ -732,6 +725,102 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  void _showShareOptions(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text(
+          'Share Document',
+          style: TextStyle(fontFamily: 'OpenDyslexic'),
+        ),
+        content: const Text(
+          'Choose how you want to share:',
+          style: TextStyle(fontFamily: 'OpenDyslexic'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              context.read<AppBloc>().add(ShareDocumentAsText(
+                documentName: widget.imagePath.split('/').last,
+                content: _extractedText,
+              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Sharing text...'),
+                  backgroundColor: Color(0xFFB789DA),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+            child: const Text('Share as Text'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              context.read<AppBloc>().add(ShareDocument(
+                documentName: widget.imagePath.split('/').last.replaceAll('.jpg', '').replaceAll('.png', ''),
+                content: _extractedText,
+                format: 'pdf',
+                detectedLanguage: _detectedLanguage,
+              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Creating PDF...'),
+                  backgroundColor: Color(0xFFB789DA),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Share as PDF'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              context.read<AppBloc>().add(ExportDocumentAsText(
+                documentName: widget.imagePath.split('/').last,
+                content: _extractedText,
+              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Exporting text...'),
+                  backgroundColor: Color(0xFFB789DA),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+            child: const Text('Export as Text'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              context.read<AppBloc>().add(ExportDocumentAsPDF(
+                documentName: widget.imagePath.split('/').last.replaceAll('.jpg', '').replaceAll('.png', ''),
+                content: _extractedText,
+                detectedLanguage: _detectedLanguage,
+              ));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Creating PDF...'),
+                  backgroundColor: Color(0xFFB789DA),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Export as PDF'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFFB789DA)),
+            ),
+          ),
+        ],
       ),
     );
   }
