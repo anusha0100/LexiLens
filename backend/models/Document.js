@@ -12,7 +12,8 @@ const documentSchema = new mongoose.Schema({
   },
   filePath: {
     type: String,
-    required: true
+    required: false,
+    default: ''
   },
   fileSize: {
     type: Number
@@ -35,6 +36,14 @@ const documentSchema = new mongoose.Schema({
   isFavorite: {
     type: Boolean,
     default: false
+  },
+  detectedLanguage: {
+    type: String,
+    default: null
+  },
+  detectedScript: {
+    type: String,
+    default: null
   }
 });
 

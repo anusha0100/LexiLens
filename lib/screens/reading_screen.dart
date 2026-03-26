@@ -116,11 +116,28 @@ class _ReadingScreenState extends State<ReadingScreen>
                 onPressed: () => Navigator.pop(context),
               ),
             ),
-            body: const Center(
-              child: Text(
-                'No document selected',
-                style: TextStyle(fontSize: 16, color: _kOnSurface,
-                    fontFamily: 'OpenDyslexic'),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(color: _kAccent),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Loading document...',
+                    style: TextStyle(fontSize: 16, color: _kOnSurface,
+                        fontFamily: 'OpenDyslexic'),
+                  ),
+                  const SizedBox(height: 32),
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back, color: _kAccent),
+                    label: const Text(
+                      'Go Back',
+                      style: TextStyle(color: _kAccent,
+                          fontFamily: 'OpenDyslexic'),
+                    ),
+                  ),
+                ],
               ),
             ),
           );

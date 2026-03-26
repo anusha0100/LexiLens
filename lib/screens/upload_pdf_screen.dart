@@ -30,6 +30,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         type: FileType.custom,
         allowedExtensions: ['pdf', 'txt'],
         allowMultiple: true,
+        withData: true,
       );
 
       if (result != null) {
@@ -57,18 +58,32 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
   }
 
   Future<void> _extractTextFromPDF(PlatformFile file) async {
-    if (file.path == null) return;
+    if (file.path == null && file.bytes == null) return;
 
     setState(() {
       _extractionStatus[file.name] = true;
     });
 
     try {
-      final File pdfFile = File(file.path!);
-      final List<int> bytes = await pdfFile.readAsBytes();
-      
+      final List<int> bytes;
+      if (file.path != null) {
+        bytes = await File(file.path!).readAsBytes();
+      } else {
+        bytes = file.bytes!;
+      }
+
       final PdfDocument document = PdfDocument(inputBytes: bytes);
       String extractedText = '';
+
+      if (document.pages.count == 0) {
+        setState(() {
+          _extractedTexts[file.name] = 'Error: PDF has no pages';
+          _extractionStatus[file.name] = false;
+        });
+        document.dispose();
+        return;
+      }
+
       final PdfTextExtractor extractor = PdfTextExtractor(document);
       
       for (int i = 0; i < document.pages.count; i++) {
@@ -102,14 +117,19 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
   }
 
   Future<void> _extractTextFromTXT(PlatformFile file) async {
-    if (file.path == null) return;
+    if (file.path == null && file.bytes == null) return;
 
     setState(() {
       _extractionStatus[file.name] = true;
     });
 
     try {
-      final content = await File(file.path!).readAsString();
+      final String content;
+      if (file.path != null) {
+        content = await File(file.path!).readAsString();
+      } else {
+        content = String.fromCharCodes(file.bytes!);
+      }
       
       setState(() {
         _extractedTexts[file.name] = content.isNotEmpty 
@@ -140,8 +160,8 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
       return;
     }
 
-    final userId = _authService.getUserId();
-    if (userId == null) {
+    final user = _authService.currentUser;
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please log in to upload documents'),
@@ -156,6 +176,14 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     });
 
     try {
+      // Always refresh the Firebase token before API calls —
+      // tokens expire after 1 hour and a stale token causes silent failures.
+      final token = await user.getIdToken(true);
+      if (token != null) {
+        _mongoService.setAuthToken(token);
+      }
+      final userId = user.uid;
+
       int successCount = 0;
       int failCount = 0;
 
@@ -163,8 +191,17 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
         try {
           final content = _extractedTexts[file.name] ?? '';
           
-          if (content.isEmpty || content.contains('Error') || content.contains('No text')) {
-            print('Skipping ${file.name} - no valid content');
+          if (content.isEmpty || content.startsWith('Error:') || content == 'No text found in PDF' || content == 'Empty text file') {
+            print('Skipping ${file.name} - no valid content: $content');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Skipped "${file.name}": $content'),
+                  backgroundColor: Colors.orange,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
             failCount++;
             continue;
           }
@@ -181,17 +218,10 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
 
           print('Uploading ${file.name}...');
           print('Content length: ${content.length} characters');
-          print('First 100 chars: ${content.substring(0, content.length > 100 ? 100 : content.length)}');
-          
-          final savedDoc = await _mongoService.createDocument(document);
-          
-          if (savedDoc != null) {
-            successCount++;
-            print('Successfully uploaded ${file.name}');
-          } else {
-            failCount++;
-            print('Failed to save ${file.name} to database');
-          }
+
+          await _mongoService.createDocument(document);
+          successCount++;
+          print('Successfully uploaded ${file.name}');
         } catch (e) {
           print('Error uploading ${file.name}: $e');
           failCount++;
@@ -571,4 +601,3 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     }
   }
 }
-

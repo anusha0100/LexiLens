@@ -36,44 +36,57 @@ class MongoDBService {
   }
 
   Future<DocumentModel?> createDocument(DocumentModel document) async {
+    print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    print('CREATING DOCUMENT');
+    print('Name: ${document.name}');
+    print('Content Length: ${document.content.length}');
+
+    final payload = {
+      'userId': document.userId,
+      'fileName': document.name,
+      'documentText': document.content,
+      'filePath': document.filePath ?? '',
+      'uploadedDate': document.uploadedDate.toIso8601String(),
+      'tags': document.tags,
+      'isFavorite': document.isFavorite,
+      if (document.detectedLanguage != null)
+        'detectedLanguage': document.detectedLanguage,
+      if (document.detectedScript != null)
+        'detectedScript': document.detectedScript,
+    };
+
     try {
-      print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      print('CREATING DOCUMENT');
-      print('Name: ${document.name}');
-      print('Content Length: ${document.content.length}');
-      print('First 200 chars: ${document.content.substring(0, document.content.length > 200 ? 200 : document.content.length)}');
-      
-      final payload = {
-        'userId': document.userId,
-        'fileName': document.name,
-        'documentText': document.content,
-        'filePath': document.filePath ?? '',
-        'uploadedDate': document.uploadedDate.toIso8601String(),
-        'tags': document.tags,
-        'isFavorite': document.isFavorite,
-      };
-      
-      print('Payload: ${jsonEncode(payload)}');
-      
       final response = await http.post(
         Uri.parse('$baseUrl/documents'),
         headers: headers,
         body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 20));
+      // Render free tier cold-starts can take 30-50s — 60s gives enough headroom.
+      ).timeout(const Duration(seconds: 60));
 
       print('Response Status: ${response.statusCode}');
       print('Response Body: ${response.body}');
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      
+
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return DocumentModel.fromJson(data);
       }
-      
-      return null;
+
+      // Surface the actual server error so callers can show it to the user.
+      String serverMessage = 'Server error ${response.statusCode}';
+      try {
+        final errBody = jsonDecode(response.body);
+        if (errBody['message'] != null) {
+          serverMessage = errBody['message'].toString();
+        }
+      } catch (_) {}
+      throw Exception(serverMessage);
+
+    } on Exception {
+      rethrow; // let callers handle and display the real message
     } catch (e) {
       print('Create Document Error: $e');
-      return null;
+      throw Exception('Network error: $e');
     }
   }
 
@@ -325,4 +338,3 @@ class MongoDBService {
     }
   }
 }
-

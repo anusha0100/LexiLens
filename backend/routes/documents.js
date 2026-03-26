@@ -4,14 +4,16 @@ const router = express.Router();
 
 router.post('/', async (req, res) => {
   try {
-    const { userId, fileName, filePath, documentText } = req.body;
+    const { userId, fileName, filePath, documentText, tags, isFavorite, uploadedDate } = req.body;
     
     const document = new Document({
       userId,
       fileName,
-      filePath,
+      filePath: filePath || '',
       documentText,
-      uploadedDate: new Date()
+      tags: tags || [],
+      isFavorite: isFavorite || false,
+      uploadedDate: uploadedDate ? new Date(uploadedDate) : new Date()
     });
     
     const savedDoc = await document.save();

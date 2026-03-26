@@ -281,29 +281,41 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     });
 
     try {
-      final userId = _authService.getUserId();
-
-      if (userId == null) {
+      final user = _authService.currentUser;
+      if (user == null) {
         throw Exception('User not logged in');
+      }
+
+      // Always refresh the Firebase token before making API calls —
+      // tokens expire after 1 hour and a stale token causes silent 401s.
+      final token = await user.getIdToken(true);
+      if (token != null) {
+        _mongoService.setAuthToken(token);
+      }
+
+      final userId = user.uid;
+
+      final text = _extractedText.trim();
+      if (text.isEmpty) {
+        throw Exception('No text was extracted from this scan. Try rescanning with better lighting.');
       }
 
       final document = DocumentModel(
         userId: userId,
         name: 'Scanned_${DateTime.now().millisecondsSinceEpoch}',
-        content: _extractedText,
-        filePath: widget.imagePath,
+        content: text,
+        filePath: null,   // image lives on device only, not sent to backend
         uploadedDate: DateTime.now(),
         tags: [],
         isFavorite: false,
+        detectedLanguage: _detectedLanguage,
+        detectedScript: _detectedScript,
       );
 
-      
-      final savedDoc = await _mongoService.createDocument(document);
+      await _mongoService.createDocument(document);
 
-      if (savedDoc != null && mounted) {
-        
+      if (mounted) {
         context.read<AppBloc>().add(LoadDocuments());
-
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Document saved successfully!'),
@@ -311,8 +323,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-      } else {
-        throw Exception('Failed to save document');
       }
     } catch (e) {
       if (mounted) {
@@ -320,7 +330,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
           SnackBar(
             content: Text('Error saving document: $e'),
             backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
       }

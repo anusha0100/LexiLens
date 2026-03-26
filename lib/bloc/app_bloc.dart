@@ -53,7 +53,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
             return Document(
               id: doc.id ?? '',
               name: doc.name,
-              previewPath: 'assets/doc_preview1.png',
+              previewPath: 'assets/l1.png',
               uploadedDate: doc.uploadedDate,
               content: doc.content,
             );
@@ -86,17 +86,38 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('📖 OPENING DOCUMENT: ${event.documentPath}');
       
-      final doc = state.recentDocuments.firstWhere(
-        (d) => d.id == event.documentPath,
-        orElse: () => Document(
-          id: '0',
-          name: 'Not found',
-          previewPath: '',
-          uploadedDate: DateTime.now(),
-          content: '',
-        ),
+      // First try to find the document in local state
+      Document? doc = state.recentDocuments.cast<Document?>().firstWhere(
+        (d) => d!.id == event.documentPath,
+        orElse: () => null,
       );
-      
+
+      // If not found locally or content is empty, fetch from MongoDB
+      if (doc == null || doc.content.isEmpty) {
+        print('Document not in local state or has no content — fetching from MongoDB...');
+        try {
+          final mongoDoc = await _mongoService.getDocument(event.documentPath);
+          if (mongoDoc != null && mongoDoc.content.isNotEmpty) {
+            doc = Document(
+              id: mongoDoc.id ?? event.documentPath,
+              name: mongoDoc.name,
+              previewPath: 'assets/l1.png',
+              uploadedDate: mongoDoc.uploadedDate,
+              content: mongoDoc.content,
+            );
+            print('Fetched from MongoDB: ${doc.name}, ${doc.content.length} chars');
+          }
+        } catch (e) {
+          print('Error fetching document from MongoDB: $e');
+        }
+      }
+
+      if (doc == null) {
+        print('Document not found anywhere');
+        print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        return;
+      }
+
       print('Document found: ${doc.name}');
       print('Content length: ${doc.content.length}');
       print('First 200 chars: ${doc.content.substring(0, doc.content.length > 200 ? 200 : doc.content.length)}');
@@ -137,7 +158,7 @@ class AppBloc extends Bloc<AppEvent, AppState> {
             userId: userId,
             name: event.document!.name,
             content: event.document!.content,
-            filePath: event.document!.previewPath,
+            filePath: null,
             uploadedDate: event.document!.uploadedDate,
             tags: event.tags ?? [],
           );

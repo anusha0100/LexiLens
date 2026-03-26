@@ -51,8 +51,17 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Keep debug fast — no shrinking
+            shrinkResources false
+            minifyEnabled false
+        }
         release {
             signingConfig signingConfigs.debug
+            // Shrink & minify for release — smaller DEX = faster install & startup
+            shrinkResources true
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
