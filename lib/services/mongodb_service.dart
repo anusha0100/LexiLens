@@ -9,7 +9,7 @@ class MongoDBService {
   factory MongoDBService() => _instance;
   MongoDBService._internal();
 
-  static const String baseUrl = 'https://lexilens.onrender.com';
+  static const String baseUrl = 'https://lexilens.onrender.com/api';
   String _authToken = '';
 
   void setAuthToken(String token) {
@@ -25,7 +25,7 @@ class MongoDBService {
   Future<bool> testConnection() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/health'),
+        Uri.parse('https://lexilens.onrender.com/health'),
         headers: headers,
       ).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
