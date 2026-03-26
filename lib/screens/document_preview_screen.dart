@@ -473,7 +473,14 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
     
     try {
       final ocrResult = await _ocrService.extractTextWithLanguage(_currentImagePath);
-      
+
+      // Copy the processed image to the app's permanent documents directory so
+      // it survives this screen being disposed by Navigator.pushReplacement.
+      final appDir = await getApplicationDocumentsDirectory();
+      final permanentPath =
+          '${appDir.path}/scan_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await File(_currentImagePath).copy(permanentPath);
+
       if (mounted) {
         setState(() {
           _isProcessing = false;
@@ -496,7 +503,7 @@ class _DocumentPreviewScreenState extends State<DocumentPreviewScreen> {
             builder: (_) => BlocProvider.value(
               value: context.read<AppBloc>(),
               child: TextOverlayScreen(
-                imagePath: _currentImagePath,
+                imagePath: permanentPath,
                 textBlocks: ocrResult['blocks'] as List<TextBlock>,
                 useOpenDyslexic: ocrResult['canUseOpenDyslexic'] as bool? ?? widget.useOpenDyslexic,
                 fontSize: widget.fontSize,
