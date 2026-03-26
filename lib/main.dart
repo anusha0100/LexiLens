@@ -30,7 +30,7 @@ Future<void> _testBackendConnection() async {
   
   try {
     final response = await http.get(
-      Uri.parse('${MongoDBService.baseUrl.replaceAll('/api', '')}/api/health'),
+      Uri.parse('${MongoDBService.baseUrl.replaceAll('/api', '')}/health'),
     ).timeout(
       const Duration(seconds: 5),
       onTimeout: () {
