@@ -114,14 +114,22 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   Future<void> _loadImage() async {
-    final imageFile = File(widget.imagePath);
-    final bytes = await imageFile.readAsBytes();
-    final image = await decodeImageFromList(bytes);
-    if (mounted) {
-      setState(() {
-        _decodedImage = image;
-      });
-      _getImageDisplaySize();
+    try {
+      final imageFile = File(widget.imagePath);
+      if (!imageFile.existsSync()) {
+        print('Image file not found at path: ${widget.imagePath}');
+        return;
+      }
+      final bytes = await imageFile.readAsBytes();
+      final image = await decodeImageFromList(bytes);
+      if (mounted) {
+        setState(() {
+          _decodedImage = image;
+        });
+        _getImageDisplaySize();
+      }
+    } catch (e) {
+      print('Error loading image: $e');
     }
   }
 
