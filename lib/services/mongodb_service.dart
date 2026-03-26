@@ -9,7 +9,7 @@ class MongoDBService {
   factory MongoDBService() => _instance;
   MongoDBService._internal();
 
-  static const String baseUrl = 'https://lexilens-backend-yyix.onrender.com/api';
+  static const String baseUrl = 'https://lexilens.onrender.com';
   String _authToken = '';
 
   void setAuthToken(String token) {
