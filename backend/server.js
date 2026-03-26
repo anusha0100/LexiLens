@@ -9,9 +9,32 @@ app.use(cors());
 app.use(express.json());
 
 
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/lexilens')
+const MONGODB_URI = process.env.MONGODB_URI;
+
+if (!MONGODB_URI) {
+  console.error('FATAL: MONGODB_URI environment variable is not set.');
+  console.error('Set it in Render Dashboard → Environment → Add Environment Variable.');
+  process.exit(1);
+}
+
+mongoose.connect(MONGODB_URI, {
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000,
+})
   .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+  .catch(err => {
+    console.error('MongoDB connection error:', err.message);
+    process.exit(1);
+  });
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('MongoDB disconnected. Attempting to reconnect...');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('MongoDB reconnected');
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
