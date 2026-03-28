@@ -23,6 +23,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   File? _profileImage;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isDeleting = false;
 
   @override
   void initState() {
@@ -378,11 +379,172 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                       ),
                     ),
+
+                    // ── Delete Account (FR-004 / GDPR compliance) ──────────
+                    const SizedBox(height: 32),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Danger Zone',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                        fontFamily: 'OpenDyslexic',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: OutlinedButton.icon(
+                        onPressed: _showDeleteAccountDialog,
+                        icon: const Icon(Icons.delete_forever,
+                            color: Colors.red),
+                        label: const Text(
+                          'Delete Account',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.red,
+                            fontFamily: 'OpenDyslexic',
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red, width: 2),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Permanently deletes your account and all associated data. This cannot be undone.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                        fontFamily: 'OpenDyslexic',
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
     );
+  }
+
+  @override
+  // FR-004: Account deletion
+  // FR-004: Account deletion dialog (GDPR / COPPA compliance)
+  Future<void> _showDeleteAccountDialog() async {
+    final passwordController = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        // StatefulBuilder lets us toggle password visibility inside the dialog.
+        return StatefulBuilder(
+          builder: (ctx, setDlg) {
+            bool obscure = true;
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
+              title: const Text(
+                'Delete Account',
+                style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'OpenDyslexic'),
+              ),
+              content: StatefulBuilder(
+                builder: (ctx2, setField) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'This will permanently delete your account and all '
+                      'saved documents. This action cannot be undone.',
+                      style: TextStyle(fontFamily: 'OpenDyslexic'),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Enter your password to confirm:',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'OpenDyslexic'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscure,
+                      decoration: InputDecoration(
+                        hintText: 'Password',
+                        hintStyle:
+                            const TextStyle(fontFamily: 'OpenDyslexic'),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        suffixIcon: IconButton(
+                          icon: Icon(obscure
+                              ? Icons.visibility_off
+                              : Icons.visibility),
+                          onPressed: () =>
+                              setField(() => obscure = !obscure),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel',
+                      style: TextStyle(
+                          color: Colors.grey,
+                          fontFamily: 'OpenDyslexic')),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red),
+                  child: const Text('Delete',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontFamily: 'OpenDyslexic')),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      final result = await _authService.deleteAccount(
+          password: passwordController.text);
+      passwordController.dispose();
+      if (!mounted) return;
+      if (result['success'] == true) {
+        // Navigate back to the login/welcome screen, clearing the stack.
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(result['message'] ?? 'Deletion failed',
+              style: const TextStyle(fontFamily: 'OpenDyslexic')),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
   }
 
   @override

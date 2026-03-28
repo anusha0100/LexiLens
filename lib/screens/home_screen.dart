@@ -6,6 +6,7 @@ import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/screens/reading_screen.dart';
 import 'package:lexilens/screens/filter_screen.dart';
 import 'package:lexilens/screens/scanner_screen.dart';
+import 'package:lexilens/screens/live_ar_screen.dart';
 import 'package:lexilens/screens/upload_pdf_screen.dart';
 import 'package:lexilens/screens/documents_screen.dart';
 import 'package:lexilens/screens/settings_screen.dart';
@@ -215,6 +216,30 @@ class _HomeScreenState extends State<HomeScreen> {
                               builder: (_) => BlocProvider.value(
                                 value: context.read<AppBloc>(),
                                 child: const UploadPDFScreen(),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // FR-005 to FR-009: Live AR OCR entry point
+                Row(
+                  children: [
+                    Expanded(
+                      child: _ToolCard(
+                        title: 'Live AR OCR',
+                        icon: Icons.view_in_ar,
+                        color: const Color(0xFF7B4FA6),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BlocProvider.value(
+                                value: context.read<AppBloc>(),
+                                child: const LiveArScreen(),
                               ),
                             ),
                           );

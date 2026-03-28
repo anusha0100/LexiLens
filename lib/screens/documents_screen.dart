@@ -1,4 +1,6 @@
-// lib/screens/documents_screen.dart (UPDATED WITH DELETE)
+// lib/screens/documents_screen.dart
+// FR-025: Document search added (search bar + query logic).
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -8,8 +10,23 @@ import 'package:lexilens/screens/reading_screen.dart';
 import 'package:lexilens/screens/upload_pdf_screen.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 
-class DocumentsScreen extends StatelessWidget {
+// FR-025: DocumentsScreen is now stateful so it can hold the search query.
+class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
+
+  @override
+  State<DocumentsScreen> createState() => _DocumentsScreenState();
+}
+
+class _DocumentsScreenState extends State<DocumentsScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,154 +66,205 @@ class DocumentsScreen extends StatelessWidget {
       ),
       body: BlocBuilder<AppBloc, AppState>(
         builder: (context, state) {
-          if (state.recentDocuments.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.description_outlined,
-                    size: 80,
-                    color: Colors.grey[300],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No documents yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey[600],
-                      fontFamily: 'OpenDyslexic',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Upload or scan a document to get started',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[500],
-                      fontFamily: 'OpenDyslexic',
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
+          // FR-025: Filter documents by search query
+          final allDocs = state.recentDocuments;
+          final docs = _query.isEmpty
+              ? allDocs
+              : allDocs
+                  .where((d) =>
+                      d.name
+                          .toLowerCase()
+                          .contains(_query.toLowerCase()) ||
+                      d.content
+                          .toLowerCase()
+                          .contains(_query.toLowerCase()))
+                  .toList();
 
           return Column(
             children: [
+              // ── Search bar (FR-025) ────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                child: Row(
-                  children: [
-                    Text(
-                      '${state.recentDocuments.length} document${state.recentDocuments.length > 1 ? 's' : ''}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                        fontFamily: 'OpenDyslexic',
-                      ),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                  decoration: InputDecoration(
+                    hintText: 'Search documents…',
+                    hintStyle: const TextStyle(fontFamily: 'OpenDyslexic'),
+                    prefixIcon:
+                        const Icon(Icons.search, color: Color(0xFFB789DA)),
+                    suffixIcon: _query.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
-                  ],
+                  ),
                 ),
               ),
+
+              // ── Document count ─────────────────────────────────────────
+              if (allDocs.isNotEmpty)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        _query.isEmpty
+                            ? '${allDocs.length} document${allDocs.length != 1 ? "s" : ""}'
+                            : '${docs.length} of ${allDocs.length} documents',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          fontFamily: 'OpenDyslexic',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // ── Document list / empty state ────────────────────────────
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: state.recentDocuments.length,
-                  itemBuilder: (context, index) {
-                    final doc = state.recentDocuments[index];
-                    return _DocumentCard(
-                      document: doc,
-                      onTap: () {
-                        print('Opening document: ${doc.name}');
-                        print('Content length: ${doc.content.length}');
-                        context.read<AppBloc>().add(OpenDocument(doc.id));
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => BlocProvider.value(
-                              value: context.read<AppBloc>(),
-                              child: const ReadingScreen(),
+                child: docs.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              _query.isNotEmpty
+                                  ? Icons.search_off
+                                  : Icons.description_outlined,
+                              size: 80,
+                              color: Colors.grey[300],
                             ),
-                          ),
-                        );
-                      },
-                      onDelete: () async {
-                        final confirmed = await showDialog<bool>(
-                          context: context,
-                          builder: (dialogContext) => AlertDialog(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            title: const Text(
-                              'Delete Document',
-                              style: TextStyle(fontFamily: 'OpenDyslexic'),
-                            ),
-                            content: Text(
-                              'Are you sure you want to delete "${doc.name}"? This cannot be undone.',
-                              style: const TextStyle(fontFamily: 'OpenDyslexic'),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(dialogContext, false),
-                                child: const Text(
-                                  'Cancel',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontFamily: 'OpenDyslexic',
-                                  ),
-                                ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _query.isNotEmpty
+                                  ? 'No documents match "$_query"'
+                                  : 'No documents yet',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.grey[600],
+                                fontFamily: 'OpenDyslexic',
                               ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(dialogContext, true),
-                                child: const Text(
-                                  'Delete',
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                    fontFamily: 'OpenDyslexic',
-                                  ),
+                            ),
+                            if (_query.isEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                'Upload or scan a document to get started',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[500],
+                                  fontFamily: 'OpenDyslexic',
                                 ),
                               ),
                             ],
-                          ),
-                        );
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: docs.length,
+                        itemBuilder: (context, index) {
+                          final doc = docs[index];
+                          return _DocumentCard(
+                            document: doc,
+                            searchQuery: _query,
+                            onTap: () {
+                              context.read<AppBloc>().add(OpenDocument(doc.id));
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => BlocProvider.value(
+                                    value: context.read<AppBloc>(),
+                                    child: const ReadingScreen(),
+                                  ),
+                                ),
+                              );
+                            },
+                            onDelete: () async {
+                              final confirmed = await showDialog<bool>(
+                                context: context,
+                                builder: (dialogContext) => AlertDialog(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  title: const Text('Delete Document',
+                                      style: TextStyle(
+                                          fontFamily: 'OpenDyslexic')),
+                                  content: Text(
+                                    'Are you sure you want to delete "${doc.name}"? This cannot be undone.',
+                                    style: const TextStyle(
+                                        fontFamily: 'OpenDyslexic'),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext, false),
+                                      child: const Text('Cancel',
+                                          style: TextStyle(
+                                              color: Colors.grey,
+                                              fontFamily: 'OpenDyslexic')),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dialogContext, true),
+                                      child: const Text('Delete',
+                                          style: TextStyle(
+                                              color: Colors.red,
+                                              fontWeight: FontWeight.bold,
+                                              fontFamily: 'OpenDyslexic')),
+                                    ),
+                                  ],
+                                ),
+                              );
 
-                        if (confirmed == true && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Deleting document...'),
-                              duration: Duration(seconds: 1),
-                              backgroundColor: Color(0xFFB789DA),
-                            ),
+                              if (confirmed == true && context.mounted) {
+                                final mongoService = MongoDBService();
+                                final deleted =
+                                    await mongoService.deleteDocument(doc.id);
+                                if (context.mounted) {
+                                  if (deleted) {
+                                    context
+                                        .read<AppBloc>()
+                                        .add(DeleteDocument(doc.id));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content:
+                                            Text('Document deleted successfully'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content:
+                                            Text('Failed to delete document'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+                            },
                           );
-                          final mongoService = MongoDBService();
-                          final deleted = await mongoService.deleteDocument(doc.id);
-
-                          if (context.mounted) {
-                            if (deleted) {
-                              context.read<AppBloc>().add(DeleteDocument(doc.id));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Document deleted successfully'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Failed to delete document'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        }
-                      },
-                    );
-                  },
-                ),
+                        },
+                      ),
               ),
             ],
           );
@@ -218,39 +286,77 @@ class DocumentsScreen extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: const Text(
           'Upload',
-          style: TextStyle(
-            fontFamily: 'OpenDyslexic',
-          ),
+          style: TextStyle(fontFamily: 'OpenDyslexic'),
         ),
       ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Document card widget
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _DocumentCard extends StatelessWidget {
   final Document document;
+  final String searchQuery;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
   const _DocumentCard({
     required this.document,
+    required this.searchQuery,
     required this.onTap,
     required this.onDelete,
   });
 
   String _getTimeAgo(DateTime date) {
     final now = DateTime.now();
-    final difference = now.difference(date);
+    final diff = now.difference(date);
+    if (diff.inDays > 0) return '${diff.inDays}d ago';
+    if (diff.inHours > 0) return '${diff.inHours}h ago';
+    if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
+    return 'Just now';
+  }
 
-    if (difference.inDays > 0) {
-      return '${difference.inDays}d ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}h ago';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}m ago';
-    } else {
-      return 'Just now';
+  // Highlight matching text in search results
+  Widget _highlightText(String text, String query,
+      {TextStyle? baseStyle, int? maxLines}) {
+    if (query.isEmpty) {
+      return Text(
+        text,
+        style: baseStyle,
+        maxLines: maxLines,
+        overflow: maxLines != null ? TextOverflow.ellipsis : null,
+      );
     }
+    final lower = text.toLowerCase();
+    final qLower = query.toLowerCase();
+    final spans = <TextSpan>[];
+    int start = 0;
+    while (true) {
+      final idx = lower.indexOf(qLower, start);
+      if (idx < 0) {
+        spans.add(TextSpan(text: text.substring(start), style: baseStyle));
+        break;
+      }
+      if (idx > start) {
+        spans.add(TextSpan(text: text.substring(start, idx), style: baseStyle));
+      }
+      spans.add(TextSpan(
+        text: text.substring(idx, idx + query.length),
+        style: (baseStyle ?? const TextStyle()).copyWith(
+          backgroundColor: const Color(0xFFFFE082),
+          fontWeight: FontWeight.bold,
+        ),
+      ));
+      start = idx + query.length;
+    }
+    return RichText(
+      text: TextSpan(children: spans),
+      maxLines: maxLines,
+      overflow: maxLines != null ? TextOverflow.ellipsis : TextOverflow.clip,
+    );
   }
 
   @override
@@ -258,9 +364,7 @@ class _DocumentCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -275,26 +379,23 @@ class _DocumentCard extends StatelessWidget {
                   color: const Color(0xFFE8D5F0),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(
-                  Icons.description,
-                  color: Color(0xFFB789DA),
-                  size: 32,
-                ),
+                child: const Icon(Icons.description,
+                    color: Color(0xFFB789DA), size: 32),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    _highlightText(
                       document.name,
-                      style: const TextStyle(
+                      searchQuery,
+                      baseStyle: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         fontFamily: 'OpenDyslexic',
                       ),
                       maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -305,14 +406,11 @@ class _DocumentCard extends StatelessWidget {
                         fontFamily: 'OpenDyslexic',
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(
-                          Icons.text_snippet,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
+                        Icon(Icons.text_snippet,
+                            size: 14, color: Colors.grey[500]),
                         const SizedBox(width: 4),
                         Text(
                           '${document.content.length} characters',
@@ -330,34 +428,27 @@ class _DocumentCard extends StatelessWidget {
               PopupMenuButton(
                 icon: const Icon(Icons.more_vert),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                    borderRadius: BorderRadius.circular(12)),
                 itemBuilder: (context) => [
                   const PopupMenuItem(
                     value: 'read',
-                    child: Row(
-                      children: [
-                        Icon(Icons.book_outlined, size: 20),
-                        SizedBox(width: 8),
-                        Text('Read', style: TextStyle(fontFamily: 'OpenDyslexic')),
-                      ],
-                    ),
+                    child: Row(children: [
+                      Icon(Icons.book_outlined, size: 20),
+                      SizedBox(width: 8),
+                      Text('Read',
+                          style: TextStyle(fontFamily: 'OpenDyslexic')),
+                    ]),
                   ),
                   const PopupMenuItem(
                     value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text(
-                          'Delete',
+                    child: Row(children: [
+                      Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete',
                           style: TextStyle(
-                            color: Colors.red,
-                            fontFamily: 'OpenDyslexic',
-                          ),
-                        ),
-                      ],
-                    ),
+                              color: Colors.red,
+                              fontFamily: 'OpenDyslexic')),
+                    ]),
                   ),
                 ],
                 onSelected: (value) {
@@ -375,4 +466,3 @@ class _DocumentCard extends StatelessWidget {
     );
   }
 }
-

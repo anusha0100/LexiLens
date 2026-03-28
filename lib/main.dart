@@ -6,6 +6,7 @@ import 'package:lexilens/bloc/bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
 import 'package:lexilens/firebase_options.dart';
 import 'package:lexilens/screens/auth_check_screen.dart';
+import 'package:lexilens/screens/onboarding_screen.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -78,6 +79,11 @@ class LexiLens extends StatelessWidget {
         ),
         debugShowCheckedModeBanner: false,
         home: const AuthCheckScreen(),
+        // Named route used by the delete-account flow (FR-004) to clear the
+        // navigation stack and return the user to the login/onboarding screen.
+        routes: {
+          '/login': (context) => const OnboardingScreen(),
+        },
       ),
     );
   }

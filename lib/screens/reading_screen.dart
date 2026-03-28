@@ -461,6 +461,10 @@ class _ReadingScreenState extends State<ReadingScreen>
             letterSpacing: fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
             isHighlighted: state.isHighlighted,
             onTap: () => _showWordDetail(context, clean),
+            // FR-018: long-press → syllable breakdown bottom-sheet
+            onLongPress: clean.isNotEmpty
+                ? () => _showWordDetail(context, clean)
+                : null,
           );
         }).toList(),
       );
@@ -950,6 +954,8 @@ class _TappableWord extends StatefulWidget {
   final double letterSpacing;
   final bool isHighlighted;
   final VoidCallback onTap;
+  // FR-018: long-press triggers syllable breakdown popup
+  final VoidCallback? onLongPress;
 
   const _TappableWord({
     required this.word,
@@ -961,6 +967,7 @@ class _TappableWord extends StatefulWidget {
     required this.letterSpacing,
     required this.isHighlighted,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -996,6 +1003,8 @@ class _TappableWordState extends State<_TappableWord>
         _ctrl.reverse();
         widget.onTap();
       },
+      // FR-018: long-press shows syllable breakdown for the tapped word
+      onLongPress: widget.onLongPress,
       child: ScaleTransition(
         scale: _scale,
         child: Padding(
