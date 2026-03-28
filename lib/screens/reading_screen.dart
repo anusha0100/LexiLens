@@ -215,7 +215,8 @@ class _ReadingScreenState extends State<ReadingScreen>
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: _kOnSurface),
         onPressed: () {
-          context.read<AppBloc>().add(StopTextToSpeech());
+          // Pause (not stop) so TTS can be resumed when returning to this screen.
+          context.read<AppBloc>().add(PauseTextToSpeech());
           Navigator.pop(context);
         },
       ),
@@ -393,7 +394,7 @@ class _ReadingScreenState extends State<ReadingScreen>
               IconButton(
                 icon: const Icon(Icons.home, color: _kOnSurface),
                 onPressed: () {
-                  context.read<AppBloc>().add(StopTextToSpeech());
+                  context.read<AppBloc>().add(PauseTextToSpeech());
                   Navigator.pop(context);
                 },
               ),
@@ -460,8 +461,13 @@ class _ReadingScreenState extends State<ReadingScreen>
             lineSpacing: state.lineSpacing,
             letterSpacing: fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
             isHighlighted: state.isHighlighted,
-            onTap: () => _showWordDetail(context, clean),
-            // FR-018: long-press → syllable breakdown bottom-sheet
+            // Single tap: speak the tapped word via TTS.
+            onTap: () {
+              if (clean.isNotEmpty) {
+                context.read<AppBloc>().add(StartTextToSpeech(text: clean));
+              }
+            },
+            // Long-press: syllable breakdown bottom-sheet (FR-018).
             onLongPress: clean.isNotEmpty
                 ? () => _showWordDetail(context, clean)
                 : null,
@@ -731,7 +737,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                       label: 'Font Size',
                       value: state.fontSize,
                       displayValue: '${state.fontSize.toInt()}',
-                      min: 12, max: 32, divisions: 20,
+                      min: 12, max: 36, divisions: 24,
                       onChanged: (v) => context.read<AppBloc>().add(AdjustFontSize(v)),
                     ),
                     _settingsSlider(

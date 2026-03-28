@@ -244,6 +244,8 @@ class SaveFilterSettings extends AppEvent {}
 // Settings Events
 class LoadUserSettings extends AppEvent {}
 
+class ToggleDarkMode extends AppEvent {}
+
 class UpdateUserSetting extends AppEvent {
   final String key;
   final dynamic value;

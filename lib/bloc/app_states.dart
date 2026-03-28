@@ -36,7 +36,8 @@ class AppState extends Equatable {
   final String? selectedVoice;
   final bool isExporting;
   final bool isSharing;
-  
+  final bool isDarkMode;
+
   const AppState({
     this.currentTab = AppTab.home,
     this.recentDocuments = const [],
@@ -70,6 +71,7 @@ class AppState extends Equatable {
     // export/share settings
     this.isExporting = false,
     this.isSharing = false,
+    this.isDarkMode = false,
   });
 
   @override
@@ -103,6 +105,7 @@ class AppState extends Equatable {
     selectedVoice,
     isExporting,
     isSharing,
+    isDarkMode,
   ];
 
   AppState copyWith({
@@ -135,6 +138,7 @@ class AppState extends Equatable {
     String? selectedVoice,
     bool? isExporting,
     bool? isSharing,
+    bool? isDarkMode,
   }) {
     return AppState(
       currentTab: currentTab ?? this.currentTab,
@@ -166,6 +170,7 @@ class AppState extends Equatable {
       selectedVoice: selectedVoice ?? this.selectedVoice,
       isExporting: isExporting ?? this.isExporting,
       isSharing: isSharing ?? this.isSharing,
+      isDarkMode: isDarkMode ?? this.isDarkMode,
     );
   }
 }
@@ -176,12 +181,14 @@ class Document {
   final String previewPath;
   final DateTime uploadedDate;
   final String content;
-  
+  final bool isFavorite;
+
   Document({
     required this.id,
     required this.name,
     required this.previewPath,
     required this.uploadedDate,
     this.content = '',
+    this.isFavorite = false,
   });
 }

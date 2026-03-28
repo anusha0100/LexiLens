@@ -80,6 +80,17 @@ class _LiveArScreenState extends State<LiveArScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Apply user preferences from the bloc on first load.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final s = context.read<AppBloc>().state;
+        setState(() {
+          _useOpenDyslexic = s.useOpenDyslexic;
+          _fontSize = s.fontSize.clamp(12.0, 36.0);
+          _overlayOpacity = s.overlayOpacity;
+        });
+      }
+    });
     _initCamera();
   }
 

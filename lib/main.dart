@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
+import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/bloc/bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
 import 'package:lexilens/firebase_options.dart';
@@ -12,11 +13,9 @@ import 'package:http/http.dart' as http;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     print('Firebase initialized successfully');
   } catch (e) {
     print('Firebase initialization error: $e');
@@ -28,29 +27,17 @@ void main() async {
 Future<void> _testBackendConnection() async {
   print('Testing backend connection...');
   print('Backend URL: ${MongoDBService.baseUrl}');
-  
   try {
-    final response = await http.get(
-      Uri.parse('${MongoDBService.baseUrl.replaceAll('/api', '')}/health'),
-    ).timeout(
-      const Duration(seconds: 5),
-      onTimeout: () {
-        throw Exception('Connection timeout');
-      },
-    );
-    
+    final response = await http
+        .get(Uri.parse('${MongoDBService.baseUrl.replaceAll('/api', '')}/health'))
+        .timeout(const Duration(seconds: 5), onTimeout: () => throw Exception('Connection timeout'));
     if (response.statusCode == 200) {
       print('Backend connection successful');
-      print('Response: ${response.body}');
     } else {
       print('Backend returned status: ${response.statusCode}');
     }
   } catch (e) {
     print('Backend connection failed: $e');
-    print('he app will use mock data. Please check:');
-    print('   1. Is the backend server running?');
-    print('   2. Is the backend URL correct in mongodb_service.dart?');
-    print('   3. Can the device reach the backend server?');
   }
 }
 
@@ -66,23 +53,52 @@ class LexiLens extends StatelessWidget {
           create: (context) => AppBloc()..add(LoadDocuments()),
         ),
       ],
-      child: MaterialApp(
-        title: 'LexiLens',
-        theme: ThemeData(
-          primaryColor: const Color(0xFFB789DA),
-          scaffoldBackgroundColor: Colors.white,
-          fontFamily: 'OpenDyslexic',
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFB789DA),
-            primary: const Color(0xFFB789DA),
-          ),
-        ),
-        debugShowCheckedModeBanner: false,
-        home: const AuthCheckScreen(),
-        // Named route used by the delete-account flow (FR-004) to clear the
-        // navigation stack and return the user to the login/onboarding screen.
-        routes: {
-          '/login': (context) => const OnboardingScreen(),
+      child: BlocBuilder<AppBloc, AppState>(
+        buildWhen: (prev, next) => prev.isDarkMode != next.isDarkMode,
+        builder: (context, state) {
+          return MaterialApp(
+            title: 'LexiLens',
+            themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            
+            // Light Theme Configuration
+            theme: ThemeData(
+              useMaterial3: true,
+              brightness: Brightness.light,
+              primaryColor: const Color(0xFFB789DA),
+              scaffoldBackgroundColor: Colors.white,
+              fontFamily: 'OpenDyslexic', // Corrected placement
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFFB789DA),
+                primary: const Color(0xFFB789DA),
+                brightness: Brightness.light,
+              ),
+            ),
+
+            // Dark Theme Configuration
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              brightness: Brightness.dark,
+              primaryColor: const Color(0xFFB789DA),
+              scaffoldBackgroundColor: const Color(0xFF1F1A2E),
+              fontFamily: 'OpenDyslexic', // Corrected placement
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFFB789DA),
+                primary: const Color(0xFFB789DA),
+                brightness: Brightness.dark,
+              ),
+              appBarTheme: const AppBarTheme(
+                backgroundColor: Color(0xFF2D2545),
+                foregroundColor: Color(0xFFEDE0F7),
+                elevation: 0,
+              ),
+            ),
+            
+            debugShowCheckedModeBanner: false,
+            home: const AuthCheckScreen(),
+            routes: {
+              '/login': (context) => const OnboardingScreen(),
+            },
+          );
         },
       ),
     );
