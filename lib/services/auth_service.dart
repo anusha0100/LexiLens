@@ -19,7 +19,7 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => currentUser != null;
-  
+
   String extractUsername(String email) {
     try {
       final parts = email.split('@');
@@ -31,7 +31,6 @@ class AuthService {
           if (word.isEmpty) return word;
           return word[0].toUpperCase() + word.substring(1).toLowerCase();
         }).toList();
-        
         return capitalizedWords.join(' ');
       }
       return 'User';
@@ -39,7 +38,7 @@ class AuthService {
       return 'User';
     }
   }
-  
+
   String getUserDisplayName() {
     if (currentUser?.email != null) {
       return extractUsername(currentUser!.email!);
@@ -65,12 +64,12 @@ class AuthService {
 
   Future<void> _createSession(String userId, String token) async {
     final deviceInfo = await _getDeviceInfo();
-    
+
     final session = UserSession(
       userId: userId,
       token: token,
       deviceInfo: deviceInfo,
-      ipAddress: 'N/A', 
+      ipAddress: 'N/A',
       createdAt: DateTime.now(),
       expiresAt: DateTime.now().add(const Duration(days: 30)),
       isActive: true,
@@ -85,9 +84,40 @@ class AuthService {
       final username = extractUsername(email);
       await _mongoService.updateSetting(userId, 'user_name', username);
       await _mongoService.updateSetting(userId, 'user_email', email);
-      await _mongoService.updateSetting(userId, 'created_at', DateTime.now().toIso8601String());
+      await _mongoService.updateSetting(
+          userId, 'created_at', DateTime.now().toIso8601String());
     } catch (e) {
       print('Error saving user profile: $e');
+    }
+  }
+
+  /// Seeds the typed UserPreferences document and AppSetting defaults for a
+  /// newly registered user by calling POST /api/settings/seed-defaults/:userId.
+  ///
+  /// This satisfies SDS process 5.1 (Display Settings) which requires that new
+  /// users have a well-defined starting configuration, and closes the gap noted
+  /// in the SDS review — previously no defaults were seeded on registration.
+  Future<void> _seedDefaultPreferences(String userId) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${MongoDBService.baseUrl}/settings/seed-defaults/$userId'),
+            headers: {
+              'Content-Type': 'application/json',
+              if (_mongoService.authToken.isNotEmpty)
+                'Authorization': 'Bearer ${_mongoService.authToken}',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        print('✅ Default preferences seeded for $userId');
+      } else {
+        print('⚠️ seed-defaults returned ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      // Non-fatal: the app still works; preferences fall back to client defaults.
+      print('⚠️ Could not seed default preferences: $e');
     }
   }
 
@@ -116,7 +146,8 @@ class AuthService {
     required String phoneNumber,
   }) async {
     try {
-      _verificationId = 'fake_verification_${DateTime.now().millisecondsSinceEpoch}';
+      _verificationId =
+          'fake_verification_${DateTime.now().millisecondsSinceEpoch}';
 
       return {
         'success': true,
@@ -149,15 +180,20 @@ class AuthService {
           'message': 'No pending registration found',
         };
       }
-      
-      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+
+      UserCredential userCredential =
+          await _auth.createUserWithEmailAndPassword(
         email: _pendingEmail!,
         password: _pendingPassword!,
       );
+
       final token = await userCredential.user?.getIdToken();
       if (token != null && userCredential.user != null) {
         await _createSession(userCredential.user!.uid, token);
         await _saveUserProfile(userCredential.user!.uid, _pendingEmail!);
+
+        // Seed typed default preferences for the new user (SDS §5.1 / D2).
+        await _seedDefaultPreferences(userCredential.user!.uid);
       }
 
       _pendingEmail = null;
@@ -171,7 +207,7 @@ class AuthService {
       };
     } on FirebaseAuthException catch (e) {
       String message = 'Registration failed';
-      
+
       switch (e.code) {
         case 'email-already-in-use':
           message = 'This email is already registered';
@@ -208,12 +244,12 @@ class AuthService {
         password: password,
       );
       final token = await userCredential.user?.getIdToken();
-      
+
       if (token != null && userCredential.user != null) {
         await _createSession(userCredential.user!.uid, token);
         await _saveUserProfile(userCredential.user!.uid, email);
       }
-      
+
       return {
         'success': true,
         'user': userCredential.user,
@@ -221,7 +257,7 @@ class AuthService {
       };
     } on FirebaseAuthException catch (e) {
       String message = 'Login failed';
-      
+
       switch (e.code) {
         case 'user-not-found':
           message = 'No user found with this email';
@@ -254,7 +290,8 @@ class AuthService {
   Future<void> logout() async {
     try {
       if (currentUser != null) {
-        final session = await _mongoService.getActiveSession(currentUser!.uid);
+        final session =
+            await _mongoService.getActiveSession(currentUser!.uid);
         if (session != null && session.id != null) {
           await _mongoService.invalidateSession(session.id!);
         }
@@ -269,19 +306,15 @@ class AuthService {
     }
   }
 
-  String? getUserEmail() {
-    return currentUser?.email;
-  }
-
-  String? getUserId() {
-    return currentUser?.uid;
-  }
+  String? getUserEmail() => currentUser?.email;
+  String? getUserId() => currentUser?.uid;
 
   Future<String> getUsername() async {
     if (currentUser?.email != null) {
       try {
         final userId = currentUser!.uid;
-        final savedName = await _mongoService.getSetting(userId, 'user_name');
+        final savedName =
+            await _mongoService.getSetting(userId, 'user_name');
         if (savedName != null && savedName.toString().isNotEmpty) {
           return savedName.toString();
         }
@@ -310,48 +343,12 @@ class AuthService {
     }
   }
 
-  // Password reset via backend email service
-  /*Future<Map<String, dynamic>> requestPasswordReset({
-    required String email,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('${MongoDBService.baseUrl}/auth/request-reset'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
-      
-      final data = jsonDecode(response.body);
-      
-      if (response.statusCode == 200) {
-        return {
-          'success': true,
-          'message': 'Password reset email sent. Please check your inbox.',
-        };
-      }
-      
-      return {
-        'success': false,
-        'message': data['message'] ?? 'Failed to send reset email',
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'message': e.toString(),
-      };
-    }
-  }*/
-
-  // Re-authenticate user with password
   Future<Map<String, dynamic>> reauthenticateWithPassword({
     required String password,
   }) async {
     try {
       if (currentUser == null || currentUser!.email == null) {
-        return {
-          'success': false,
-          'message': 'No user logged in',
-        };
+        return {'success': false, 'message': 'No user logged in'};
       }
 
       final credential = EmailAuthProvider.credential(
@@ -361,13 +358,10 @@ class AuthService {
 
       await currentUser!.reauthenticateWithCredential(credential);
 
-      return {
-        'success': true,
-        'message': 'Re-authentication successful',
-      };
+      return {'success': true, 'message': 'Re-authentication successful'};
     } on FirebaseAuthException catch (e) {
       String message = 'Re-authentication failed';
-      
+
       switch (e.code) {
         case 'wrong-password':
           message = 'Incorrect password';
@@ -382,72 +376,49 @@ class AuthService {
           message = e.message ?? 'An error occurred';
       }
 
-      return {
-        'success': false,
-        'message': message,
-      };
+      return {'success': false, 'message': message};
     } catch (e) {
-      return {
-        'success': false,
-        'message': e.toString(),
-      };
+      return {'success': false, 'message': e.toString()};
     }
   }
 
-  // Delete user account
   Future<Map<String, dynamic>> deleteAccount({String? password}) async {
     try {
       if (currentUser == null) {
-        return {
-          'success': false,
-          'message': 'No user logged in',
-        };
+        return {'success': false, 'message': 'No user logged in'};
       }
-      
+
       final userId = currentUser!.uid;
-      final userEmail = currentUser!.email;
 
       print('Starting account deletion for user: $userId');
 
-      
       if (password != null && password.isNotEmpty) {
         print('Re-authenticating user...');
-        final reauthResult = await reauthenticateWithPassword(password: password);
-        if (!reauthResult['success']) {
-          return reauthResult;
-        }
+        final reauthResult =
+            await reauthenticateWithPassword(password: password);
+        if (!reauthResult['success']) return reauthResult;
       }
 
-      
       final token = await currentUser!.getIdToken(true);
       if (token != null) {
         _mongoService.setAuthToken(token);
       }
 
-      
       print('Deleting backend data...');
       try {
-        final response = await http.delete(
-          Uri.parse('${MongoDBService.baseUrl}/users/$userId'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            if (token != null) 'Authorization': 'Bearer $token',
-          },
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            throw Exception('Backend deletion request timed out');
-          },
-        );
+        final response = await http
+            .delete(
+              Uri.parse('${MongoDBService.baseUrl}/users/$userId'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                if (token != null) 'Authorization': 'Bearer $token',
+              },
+            )
+            .timeout(const Duration(seconds: 30));
 
         print('Backend response status: ${response.statusCode}');
-        print('Backend response body: ${response.body}');
-
         if (response.statusCode != 200) {
-          final errorData = jsonDecode(response.body);
-          print('Backend deletion failed: ${errorData['message']}');
-        
           print('⚠️ Continuing with Firebase deletion despite backend error...');
         } else {
           final responseData = jsonDecode(response.body);
@@ -458,44 +429,39 @@ class AuthService {
         print('⚠️ Continuing with Firebase deletion...');
       }
 
-      // Step 4: Delete from Firebase
       print('🔥 Deleting Firebase account...');
       try {
         await currentUser!.delete();
         print('✅ Firebase account deleted');
       } on FirebaseAuthException catch (e) {
         if (e.code == 'requires-recent-login') {
-          print('⚠️ Requires recent login');
           return {
             'success': false,
-            'message': 'For security, please enter your password to continue',
+            'message':
+                'For security, please enter your password to continue',
             'requiresReauth': true,
           };
         }
-        throw e;
+        rethrow;
       }
 
-      // Step 5: Logout and clear local data
       print('🧹 Cleaning up local data...');
       await logout();
 
       print('✅ Account deletion completed successfully');
-      
-      return {
-        'success': true,
-        'message': 'Account deleted successfully',
-      };
+      return {'success': true, 'message': 'Account deleted successfully'};
     } on FirebaseAuthException catch (e) {
       print('❌ Firebase error during deletion: ${e.code} - ${e.message}');
-      
+
       if (e.code == 'requires-recent-login') {
         return {
           'success': false,
-          'message': 'For security, please enter your password to continue',
+          'message':
+              'For security, please enter your password to continue',
           'requiresReauth': true,
         };
       }
-      
+
       return {
         'success': false,
         'message': e.message ?? 'Failed to delete Firebase account',

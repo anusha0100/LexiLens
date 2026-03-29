@@ -16,18 +16,24 @@ class MongoDBService {
     _authToken = token;
   }
 
+  /// Exposed getter so auth_service.dart can read the token when building
+  /// request headers for seed-defaults and similar calls.
+  String get authToken => _authToken;
+
   Map<String, String> get headers => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    if (_authToken.isNotEmpty) 'Authorization': 'Bearer $_authToken',
-  };
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        if (_authToken.isNotEmpty) 'Authorization': 'Bearer $_authToken',
+      };
 
   Future<bool> testConnection() async {
     try {
-      final response = await http.get(
-        Uri.parse('https://lexilens.onrender.com/health'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse('https://lexilens.onrender.com/health'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
       print('Connection test failed: $e');
@@ -53,15 +59,22 @@ class MongoDBService {
         'detectedLanguage': document.detectedLanguage,
       if (document.detectedScript != null)
         'detectedScript': document.detectedScript,
+      if (document.imageFormat != null) 'imageFormat': document.imageFormat,
+      if (document.ocrConfidence != null)
+        'ocrConfidence': document.ocrConfidence,
+      if (document.processingTimeMs != null)
+        'processingTimeMs': document.processingTimeMs,
     };
 
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/documents'),
-        headers: headers,
-        body: jsonEncode(payload),
-      // Render free tier cold-starts can take 30-50s — 60s gives enough headroom.
-      ).timeout(const Duration(seconds: 60));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/documents'),
+            headers: headers,
+            body: jsonEncode(payload),
+            // Render free tier cold-starts can take 30-50s — 60s gives headroom.
+          )
+          .timeout(const Duration(seconds: 60));
 
       print('Response Status: ${response.statusCode}');
       print('Response Body: ${response.body}');
@@ -72,7 +85,6 @@ class MongoDBService {
         return DocumentModel.fromJson(data);
       }
 
-      // Surface the actual server error so callers can show it to the user.
       String serverMessage = 'Server error ${response.statusCode}';
       try {
         final errBody = jsonDecode(response.body);
@@ -81,9 +93,8 @@ class MongoDBService {
         }
       } catch (_) {}
       throw Exception(serverMessage);
-
     } on Exception {
-      rethrow; // let callers handle and display the real message
+      rethrow;
     } catch (e) {
       print('Create Document Error: $e');
       throw Exception('Network error: $e');
@@ -94,28 +105,31 @@ class MongoDBService {
     try {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('FETCHING DOCUMENTS FOR USER: $userId');
-      
-      final response = await http.get(
-        Uri.parse('$baseUrl/documents/user/$userId'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/documents/user/$userId'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
 
       print('Response Status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         print('Found ${data.length} documents');
-        
+
         final documents = data.map((json) {
           print('Document: ${json['fileName']}');
-          print('Content Length: ${json['documentText']?.toString().length ?? 0}');
+          print(
+              'Content Length: ${json['documentText']?.toString().length ?? 0}');
           return DocumentModel.fromJson(json);
         }).toList();
-        
+
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         return documents;
       }
-      
+
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return [];
     } catch (e) {
@@ -128,24 +142,26 @@ class MongoDBService {
     try {
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       print('📖 FETCHING SINGLE DOCUMENT: $documentId');
-      
-      final response = await http.get(
-        Uri.parse('$baseUrl/documents/$documentId'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/documents/$documentId'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
 
       print('Response Status: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print('Document: ${data['fileName']}');
-        print('Content Length: ${data['documentText']?.toString().length ?? 0}');
-        print('First 200 chars: ${data['documentText']?.toString().substring(0, (data['documentText']?.toString().length ?? 0) > 200 ? 200 : (data['documentText']?.toString().length ?? 0))}');
+        print(
+            'Content Length: ${data['documentText']?.toString().length ?? 0}');
         print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
+
         return DocumentModel.fromJson(data);
       }
-      
+
       print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
       return null;
     } catch (e) {
@@ -154,13 +170,16 @@ class MongoDBService {
     }
   }
 
-  Future<bool> updateDocument(String documentId, Map<String, dynamic> updates) async {
+  Future<bool> updateDocument(
+      String documentId, Map<String, dynamic> updates) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/documents/$documentId'),
-        headers: headers,
-        body: jsonEncode(updates),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/documents/$documentId'),
+            headers: headers,
+            body: jsonEncode(updates),
+          )
+          .timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
       print('Update Document Error: $e');
@@ -171,11 +190,13 @@ class MongoDBService {
   Future<bool> deleteDocument(String documentId) async {
     try {
       print('Deleting document: $documentId');
-      final response = await http.delete(
-        Uri.parse('$baseUrl/documents/$documentId'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
-      
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/documents/$documentId'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
+
       print('Delete Response: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
@@ -186,11 +207,13 @@ class MongoDBService {
 
   Future<UserSession?> createSession(UserSession session) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/sessions'),
-        headers: headers,
-        body: jsonEncode(session.toJson()),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/sessions'),
+            headers: headers,
+            body: jsonEncode(session.toJson()),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -205,10 +228,12 @@ class MongoDBService {
 
   Future<UserSession?> getActiveSession(String userId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/sessions/$userId/active'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/sessions/$userId/active'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -222,24 +247,29 @@ class MongoDBService {
 
   Future<bool> invalidateSession(String sessionId) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/sessions/$sessionId'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/sessions/$sessionId'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
       return false;
     }
   }
 
-  // TAG OPERATIONS
+  // ── TAG OPERATIONS ──────────────────────────────────────────────────────────
+
   Future<DocumentTag?> createTag(DocumentTag tag) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/tags'),
-        headers: headers,
-        body: jsonEncode(tag.toJson()),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/tags'),
+            headers: headers,
+            body: jsonEncode(tag.toJson()),
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -253,10 +283,12 @@ class MongoDBService {
 
   Future<List<DocumentTag>> getUserTags(String userId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/tags/user/$userId'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/tags/user/$userId'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
@@ -270,28 +302,33 @@ class MongoDBService {
 
   Future<bool> deleteTag(String tagId) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/tags/$tagId'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/tags/$tagId'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
       return false;
     }
   }
 
-  // SETTINGS OPERATIONS
+  // ── SETTINGS OPERATIONS ─────────────────────────────────────────────────────
+
   Future<bool> updateSetting(String userId, String key, dynamic value) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/settings'),
-        headers: headers,
-        body: jsonEncode({
-          'userId': userId,
-          'settingKey': key,
-          'value': value,
-        }),
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/settings'),
+            headers: headers,
+            body: jsonEncode({
+              'userId': userId,
+              'settingKey': key,
+              'value': value,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       return false;
@@ -300,10 +337,12 @@ class MongoDBService {
 
   Future<dynamic> getSetting(String userId, String key) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/settings/$userId/$key'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/settings/$userId/$key'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -317,24 +356,78 @@ class MongoDBService {
 
   Future<Map<String, dynamic>> getAllSettings(String userId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/settings/user/$userId'),
-        headers: headers,
-      ).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/settings/user/$userId'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         final Map<String, dynamic> settings = {};
-        
         for (var setting in data) {
           settings[setting['settingKey']] = setting['value'];
         }
-        
         return settings;
       }
       return {};
     } catch (e) {
       return {};
+    }
+  }
+
+  // ── OCR CACHE OPERATIONS ────────────────────────────────────────────────────
+  // These methods expose the /api/ocr-cache endpoints introduced to satisfy the
+  // SDS DFD 1.1–1.4 requirement for an OCR Cache datastore (D1).
+
+  /// Check the remote OCR cache for a previously recognised image.
+  /// Returns the cached result map on a hit, or null on a miss / network error.
+  Future<Map<String, dynamic>?> getOcrCache(String imageHash) async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/ocr-cache/$imageHash'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        if (data['hit'] == true) return data;
+      }
+      return null;
+    } catch (e) {
+      print('OCR cache GET error: $e');
+      return null;
+    }
+  }
+
+  /// Store the result of a fresh ML Kit recognition pass in the remote cache.
+  Future<void> putOcrCache({
+    required String imageHash,
+    required String recognizedText,
+    double? confidenceScore,
+    String? languageDetected,
+    int? processingTimeMs,
+  }) async {
+    try {
+      await http
+          .post(
+            Uri.parse('$baseUrl/ocr-cache'),
+            headers: headers,
+            body: jsonEncode({
+              'imageHash': imageHash,
+              'recognizedText': recognizedText,
+              if (confidenceScore != null) 'confidenceScore': confidenceScore,
+              if (languageDetected != null) 'languageDetected': languageDetected,
+              if (processingTimeMs != null) 'processingTimeMs': processingTimeMs,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      // Non-fatal: caching is best-effort.
+      print('OCR cache PUT error: $e');
     }
   }
 }

@@ -8,7 +8,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
@@ -37,29 +36,27 @@ mongoose.connection.on('reconnected', () => {
 });
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/documents', require('./routes/documents'));
-app.use('/api/sessions', require('./routes/sessions'));
-app.use('/api/settings', require('./routes/settings'));
-app.use('/api/tags', require('./routes/tags'));
+app.use('/api/auth',       require('./routes/auth'));
+app.use('/api/documents',  require('./routes/documents'));
+app.use('/api/sessions',   require('./routes/sessions'));
+app.use('/api/settings',   require('./routes/settings'));
+app.use('/api/tags',       require('./routes/tags'));
 app.use('/api/dictionary', require('./routes/dictionary'));
-app.use('/api', require('./routes/users'));
+app.use('/api/ocr-cache',  require('./routes/ocrCache'));   // ← added
+app.use('/api',            require('./routes/users'));
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     message: 'Server is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-  });
+  res.status(404).json({ success: false, message: 'Route not found' });
 });
 
 // Error handling middleware
@@ -68,7 +65,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({
     success: false,
     message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
   });
 });
 
