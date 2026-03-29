@@ -66,26 +66,14 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   bool _shouldUseOpenDyslexic() {
-    // only enable OpenDyslexic for languages that use a Latin script
     final latinLanguages = [
-      'English',
-      'Spanish',
-      'French',
-      'German',
-      'Italian',
-      'Portuguese',
-      'Dutch',
-      'Swedish',
-      'Norwegian',
-      'Danish',
+      'English','Spanish','French','German','Italian',
+      'Portuguese','Dutch','Swedish','Norwegian','Danish',
     ];
     return latinLanguages.contains(_detectedLanguage);
   }
 
   Widget _buildLanguageInfoBanner() {
-    // if we aren't using the OpenDyslexic font we still want the user to
-    // know what script/language was detected so they understand why the
-    // system font (which supports Devanagari) is being used.
     if (!_canUseOpenDyslexic) {
       return Container(
         width: double.infinity,
@@ -98,12 +86,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             Expanded(
               child: Text(
                 'Detected: $_detectedLanguage ($_detectedScript script).',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  // do not specify OpenDyslexic here so the system font can
-                  // render Devanagari properly when needed
-                ),
+                style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
           ],
@@ -149,6 +132,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   void dispose() {
     _scrollController.dispose();
     try {
+      // FIX: Always stop TTS when this screen is disposed (covers back button,
+      // system back gesture, and any other route-pop path).
       context.read<AppBloc>().add(StopTextToSpeech());
     } catch (e) {
       // Context might not be available during dispose
@@ -173,7 +158,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     } else if (state.readingState == ReadingState.paused) {
       context.read<AppBloc>().add(ResumeTextToSpeech());
     } else {
-      context.read<AppBloc>().add(StartTextToSpeech(text: _extractedText, detectedLanguage: _detectedLanguage));
+      context.read<AppBloc>().add(StartTextToSpeech(
+          text: _extractedText, detectedLanguage: _detectedLanguage));
     }
   }
 
@@ -283,36 +269,27 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
 
   Future<void> _saveDocument() async {
     if (_isSaving) return;
-
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() { _isSaving = true; });
 
     try {
       final user = _authService.currentUser;
-      if (user == null) {
-        throw Exception('User not logged in');
-      }
+      if (user == null) throw Exception('User not logged in');
 
-      // Always refresh the Firebase token before making API calls —
-      // tokens expire after 1 hour and a stale token causes silent 401s.
       final token = await user.getIdToken(true);
-      if (token != null) {
-        _mongoService.setAuthToken(token);
-      }
+      if (token != null) _mongoService.setAuthToken(token);
 
       final userId = user.uid;
-
       final text = _extractedText.trim();
       if (text.isEmpty) {
-        throw Exception('No text was extracted from this scan. Try rescanning with better lighting.');
+        throw Exception(
+            'No text was extracted from this scan. Try rescanning with better lighting.');
       }
 
       final document = DocumentModel(
         userId: userId,
         name: 'Scanned_${DateTime.now().millisecondsSinceEpoch}',
         content: text,
-        filePath: null,   // image lives on device only, not sent to backend
+        filePath: null,
         uploadedDate: DateTime.now(),
         tags: [],
         isFavorite: false,
@@ -343,11 +320,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      if (mounted) setState(() { _isSaving = false; });
     }
   }
 
@@ -380,11 +353,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         ],
       ),
       leading: IconButton(
-        icon: const Icon(
-          Icons.arrow_back,
-          color: Colors.white,
-        ),
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () {
+          // FIX: Stop TTS immediately when the back button in the AppBar is pressed.
           _stopReading(context);
           Navigator.pop(context);
         },
@@ -409,9 +380,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
           ),
           tooltip: _showOverlay ? 'Hide Overlay' : 'Show Overlay',
           onPressed: () {
-            setState(() {
-              _showOverlay = !_showOverlay;
-            });
+            setState(() { _showOverlay = !_showOverlay; });
           },
         ),
         IconButton(
@@ -423,68 +392,72 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   @override
-  @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AppBloc, AppState>(
-      builder: (context, state) {
-        return Scaffold(
-          backgroundColor: Colors.black,
-          appBar: _buildAppBar(),
-          body: Column(
-            children: [
-              _buildLanguageInfoBanner(),
-              Expanded(
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4.0,
-                  child: Center(
-                    child: _buildOverlayContent(state),
+    return WillPopScope(
+      // FIX: Intercept the system/hardware back button and stop TTS before popping.
+      onWillPop: () async {
+        _stopReading(context);
+        return true;
+      },
+      child: BlocBuilder<AppBloc, AppState>(
+        builder: (context, state) {
+          return Scaffold(
+            backgroundColor: Colors.black,
+            appBar: _buildAppBar(),
+            body: Column(
+              children: [
+                _buildLanguageInfoBanner(),
+                Expanded(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4.0,
+                    child: Center(
+                      child: _buildOverlayContent(state),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          bottomNavigationBar: Container(
-            color: const Color(0xFFB789DA),
-            padding: const EdgeInsets.all(16),
-            child: SafeArea(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildBottomButton(
-                    icon: state.readingState == ReadingState.playing
-                        ? Icons.pause
-                        : (state.readingState == ReadingState.paused
-                            ? Icons.play_arrow
-                            : Icons.play_arrow),
-                    label: state.readingState == ReadingState.playing
-                        ? 'Pause'
-                        : (state.readingState == ReadingState.paused
-                            ? 'Resume'
-                            : 'Read'),
-                    onTap: () => _togglePlayPause(context, state),
-                  ),
-                  _buildBottomButton(
-                    icon: Icons.copy,
-                    label: 'Copy',
-                    onTap: _copyToClipboard,
-                  ),
-                  _buildBottomButton(
-                    icon: _isSaving ? Icons.hourglass_bottom : Icons.save,
-                    label: _isSaving ? 'Saving...' : 'Save',
-                    onTap: _isSaving ? () {} : _saveDocument,
-                  ),
-                  _buildBottomButton(
-                    icon: Icons.share,
-                    label: 'Share',
-                    onTap: () => _showShareOptions(context),
-                  ),
-                ],
+              ],
+            ),
+            bottomNavigationBar: Container(
+              color: const Color(0xFFB789DA),
+              padding: const EdgeInsets.all(16),
+              child: SafeArea(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildBottomButton(
+                      icon: state.readingState == ReadingState.playing
+                          ? Icons.pause
+                          : Icons.play_arrow,
+                      label: state.readingState == ReadingState.playing
+                          ? 'Pause'
+                          : (state.readingState == ReadingState.paused
+                              ? 'Resume'
+                              : 'Read'),
+                      onTap: () => _togglePlayPause(context, state),
+                    ),
+                    _buildBottomButton(
+                      icon: Icons.copy,
+                      label: 'Copy',
+                      onTap: _copyToClipboard,
+                    ),
+                    _buildBottomButton(
+                      icon: _isSaving ? Icons.hourglass_bottom : Icons.save,
+                      label: _isSaving ? 'Saving...' : 'Save',
+                      onTap: _isSaving ? () {} : _saveDocument,
+                    ),
+                    _buildBottomButton(
+                      icon: Icons.share,
+                      label: 'Share',
+                      onTap: () => _showShareOptions(context),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -538,7 +511,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                     useOpenDyslexic: _useOpenDyslexic,
                     fontSize: _fontSize,
                     overlayOpacity: state.overlayOpacity,
-                    detectedLanguage: _detectedLanguage,                    detectedScript: _detectedScript,                  ),
+                    detectedLanguage: _detectedLanguage,
+                    detectedScript: _detectedScript,
+                  ),
                 ),
               ),
             ),
@@ -574,7 +549,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     );
   }
 
-  
   String _findWordAtPosition(Offset position) {
     if (_decodedImage == null || _imageDisplaySize == null) return '';
 
@@ -634,12 +608,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                     value: _useOpenDyslexic,
                     activeColor: const Color(0xFFB789DA),
                     onChanged: (value) {
-                      setState(() {
-                        _useOpenDyslexic = value;
-                      });
-                      this.setState(() {
-                        _useOpenDyslexic = value;
-                      });
+                      setState(() { _useOpenDyslexic = value; });
+                      this.setState(() { _useOpenDyslexic = value; });
                     },
                   ),
                   const Divider(),
@@ -655,12 +625,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                     activeColor: const Color(0xFFB789DA),
                     label: _fontSize.toInt().toString(),
                     onChanged: (value) {
-                      setState(() {
-                        _fontSize = value;
-                      });
-                      this.setState(() {
-                        _fontSize = value;
-                      });
+                      setState(() { _fontSize = value; });
+                      this.setState(() { _fontSize = value; });
                     },
                   ),
                   BlocBuilder<AppBloc, AppState>(
@@ -781,7 +747,11 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             onPressed: () {
               Navigator.pop(dialogContext);
               context.read<AppBloc>().add(ShareDocument(
-                documentName: widget.imagePath.split('/').last.replaceAll('.jpg', '').replaceAll('.png', ''),
+                documentName: widget.imagePath
+                    .split('/')
+                    .last
+                    .replaceAll('.jpg', '')
+                    .replaceAll('.png', ''),
                 content: _extractedText,
                 format: 'pdf',
                 detectedLanguage: _detectedLanguage,
@@ -817,7 +787,11 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             onPressed: () {
               Navigator.pop(dialogContext);
               context.read<AppBloc>().add(ExportDocumentAsPDF(
-                documentName: widget.imagePath.split('/').last.replaceAll('.jpg', '').replaceAll('.png', ''),
+                documentName: widget.imagePath
+                    .split('/')
+                    .last
+                    .replaceAll('.jpg', '')
+                    .replaceAll('.png', ''),
                 content: _extractedText,
                 detectedLanguage: _detectedLanguage,
               ));
@@ -844,6 +818,12 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// OverlayStyle painter
+// FIX: layout() called without maxWidth so OpenDyslexic glyphs (wider than
+// system fonts) are never truncated. Background rect gets vertical padding
+// to accommodate the font's taller ascenders/descenders.
+// ---------------------------------------------------------------------------
 class OverlayStyle extends CustomPainter {
   final double overlayOpacity;
   final List<TextBlock> textBlocks;
@@ -875,7 +855,6 @@ class OverlayStyle extends CustomPainter {
     final scaleY = imageDisplaySize.height / imageActualSize.height;
     int globalWordIndex = 0;
 
-    // determine which font family should be used for text rendering.
     final shouldUseOpenDyslexic =
         useOpenDyslexic && _isLatinLanguage(detectedLanguage);
     final shouldUseDevanagariFont =
@@ -884,52 +863,55 @@ class OverlayStyle extends CustomPainter {
     for (final block in textBlocks) {
       for (final line in block.lines) {
         final boundingBox = line.boundingBox;
-        final left = boundingBox.left * scaleX;
-        final top = boundingBox.top * scaleY;
-        final right = boundingBox.right * scaleX;
+        final left   = boundingBox.left   * scaleX;
+        final top    = boundingBox.top    * scaleY;
+        final right  = boundingBox.right  * scaleX;
         final bottom = boundingBox.bottom * scaleY;
         final scaledRect = Rect.fromLTRB(left, top, right, bottom);
         final lineHeight = scaledRect.height;
-        final lineWidth = scaledRect.width;
-        final lineText = line.text;
-        final words =
-            lineText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        final lineText   = line.text;
+        final words = lineText
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList();
 
         if (words.isEmpty) continue;
 
         final lineStartIndex = globalWordIndex;
-        final lineEndIndex = lineStartIndex + words.length;
-        final isLineActive = currentWordIndex >= lineStartIndex &&
+        final lineEndIndex   = lineStartIndex + words.length;
+        final isLineActive   = currentWordIndex >= lineStartIndex &&
             currentWordIndex < lineEndIndex;
+
+        // FIX: Add vertical padding so OpenDyslexic's taller glyphs fit
+        // inside the background rect without clipping.
+        final double vPad = shouldUseOpenDyslexic ? lineHeight * 0.25 : 2.0;
 
         final backgroundPaint = Paint()
           ..color = const Color(0xFFEEEEEE).withOpacity(overlayOpacity)
           ..style = PaintingStyle.fill;
 
-        final bgRect = RRect.fromRectAndRadius(
-          Rect.fromLTRB(left - 4, top - 2, right + 4, bottom + 2),
-          const Radius.circular(4),
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTRB(left - 4, top - vPad, right + 4, bottom + vPad),
+            const Radius.circular(4),
+          ),
+          backgroundPaint,
         );
-
-        canvas.drawRRect(bgRect, backgroundPaint);
-
-        final calculatedFontSize = (lineHeight * 0.5).clamp(8.0, fontSize);
 
         final defaultFontFamily = shouldUseOpenDyslexic
             ? 'OpenDyslexic'
             : (shouldUseDevanagariFont ? 'NotoSansDevanagari' : null);
 
         if (line.elements.isNotEmpty) {
-          // Use OCR-provided per-word wordboxes for exact overlap alignment.
           for (int wordIdx = 0; wordIdx < line.elements.length; wordIdx++) {
             final element = line.elements[wordIdx];
-            final word = element.text;
+            final word    = element.text;
             final wordBox = element.boundingBox;
             if (wordBox == null) continue;
 
-            final wordLeft = wordBox.left * scaleX;
-            final wordTop = wordBox.top * scaleY;
-            final wordWidth = wordBox.width * scaleX;
+            final wordLeft   = wordBox.left   * scaleX;
+            final wordTop    = wordBox.top    * scaleY;
+            final wordWidth  = wordBox.width  * scaleX;
             final wordHeight = wordBox.height * scaleY;
 
             final isCurrentWord =
@@ -937,35 +919,42 @@ class OverlayStyle extends CustomPainter {
 
             final wordStyle = TextStyle(
               color: isCurrentWord ? Colors.red.shade800 : Colors.black87,
-              fontSize: wordHeight.clamp(7.0, fontSize),
+              // FIX: use fontSize (user setting) as ceiling; clamp to actual
+              // word-box height so text never overflows its detected region.
+              fontSize: fontSize.clamp(7.0, wordHeight.clamp(7.0, fontSize + 4)),
               fontWeight: isCurrentWord ? FontWeight.bold : FontWeight.w500,
               fontFamily: defaultFontFamily,
               height: 1.0,
               letterSpacing: shouldUseOpenDyslexic ? 0.5 : 0,
             );
 
-            final textSpan = TextSpan(text: word, style: wordStyle);
             final textPainter = TextPainter(
-              text: textSpan,
+              text: TextSpan(text: word, style: wordStyle),
               textDirection: TextDirection.ltr,
               maxLines: 1,
-            );
-            textPainter.layout(maxWidth: wordWidth);
+              // FIX: layout without maxWidth so OpenDyslexic glyphs are never
+              // truncated — the word is placed at its exact bounding-box origin
+              // so overflow goes rightward into natural inter-word space.
+            )..layout();
 
             if (isCurrentWord) {
               final highlightPaint = Paint()
                 ..color = Colors.yellow.withOpacity(0.6)
                 ..style = PaintingStyle.fill;
 
-              final highlightRect = RRect.fromRectAndRadius(
-                Rect.fromLTWH(wordLeft - 2, wordTop, wordWidth + 4, wordHeight),
-                const Radius.circular(2),
+              canvas.drawRRect(
+                RRect.fromRectAndRadius(
+                  Rect.fromLTWH(
+                      wordLeft - 2, wordTop - vPad,
+                      wordWidth + 4, wordHeight + vPad * 2),
+                  const Radius.circular(2),
+                ),
+                highlightPaint,
               );
-
-              canvas.drawRRect(highlightRect, highlightPaint);
             }
 
-            final textY = wordTop + (wordHeight - textPainter.height) / 2;
+            final bgH   = wordHeight + vPad * 2;
+            final textY = (wordTop - vPad) + (bgH - textPainter.height) / 2;
             textPainter.paint(canvas, Offset(wordLeft, textY));
           }
 
@@ -973,7 +962,9 @@ class OverlayStyle extends CustomPainter {
           continue;
         }
 
-        // Fallback aligned draw when per-word boxes are unavailable
+        // ── Fallback: no per-word elements — render whole line ──────────────
+        final calculatedFontSize = (lineHeight * 0.55).clamp(8.0, fontSize);
+
         final textStyle = TextStyle(
           fontSize: calculatedFontSize,
           fontWeight: FontWeight.w500,
@@ -981,17 +972,18 @@ class OverlayStyle extends CustomPainter {
           height: 1.0,
         );
 
+        // Measure full line to compute a scale-down factor if it is wider
+        // than the available box, then re-render word-by-word so individual
+        // words can still be highlighted by the TTS word index.
         final testPainter = TextPainter(
           text: TextSpan(text: lineText, style: textStyle),
           textDirection: TextDirection.ltr,
-        );
-        testPainter.layout();
+        )..layout();
 
-        final availableWidth = lineWidth - 8;
-        final scaleFactor = testPainter.width > availableWidth
+        final availableWidth = scaledRect.width - 8;
+        final scaleFactor    = testPainter.width > availableWidth
             ? availableWidth / testPainter.width
             : 1.0;
-
         final adjustedFontSize =
             (calculatedFontSize * scaleFactor).clamp(7.0, fontSize);
 
@@ -1010,34 +1002,38 @@ class OverlayStyle extends CustomPainter {
             letterSpacing: shouldUseOpenDyslexic ? 0.5 : 0,
           );
 
-          final textSpan = TextSpan(text: word, style: wordStyle);
+          // FIX: layout without maxWidth — same reasoning as per-element path.
           final textPainter = TextPainter(
-            text: textSpan,
+            text: TextSpan(text: word, style: wordStyle),
             textDirection: TextDirection.ltr,
-          );
-          textPainter.layout();
+          )..layout();
 
           if (isCurrentWord) {
             final highlightPaint = Paint()
               ..color = Colors.yellow.withOpacity(0.6)
               ..style = PaintingStyle.fill;
 
-            final highlightRect = RRect.fromRectAndRadius(
-              Rect.fromLTWH(
-                currentX - 1,
-                top + 1,
-                textPainter.width + 2,
-                lineHeight - 2,
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromLTWH(
+                  currentX - 1,
+                  top - vPad + 1,
+                  textPainter.width + 2,
+                  lineHeight + vPad * 2 - 2,
+                ),
+                const Radius.circular(2),
               ),
-              const Radius.circular(2),
+              highlightPaint,
             );
-
-            canvas.drawRRect(highlightRect, highlightPaint);
           }
 
-          final textY = top + (lineHeight - textPainter.height) / 2;
+          final bgTop = top - vPad;
+          final bgH   = lineHeight + vPad * 2;
+          final textY = bgTop + (bgH - textPainter.height) / 2;
           textPainter.paint(canvas, Offset(currentX, textY));
-          currentX += textPainter.width + (adjustedFontSize * 0.15);
+          // Advance by actual painted width + a small word-gap.
+          currentX += textPainter.width +
+              (shouldUseOpenDyslexic ? adjustedFontSize * 0.25 : adjustedFontSize * 0.15);
         }
 
         globalWordIndex += words.length;
@@ -1047,20 +1043,10 @@ class OverlayStyle extends CustomPainter {
 
   bool _isLatinLanguage(String? language) {
     if (language == null) return true;
-
-    final latinLanguages = [
-      'English',
-      'Spanish',
-      'French',
-      'German',
-      'Italian',
-      'Portuguese',
-      'Dutch',
-      'Swedish',
-      'Norwegian',
-      'Danish',
+    const latinLanguages = [
+      'English','Spanish','French','German','Italian',
+      'Portuguese','Dutch','Swedish','Norwegian','Danish',
     ];
-
     return latinLanguages.contains(language);
   }
 
@@ -1069,6 +1055,7 @@ class OverlayStyle extends CustomPainter {
     return oldDelegate.currentWordIndex != currentWordIndex ||
         oldDelegate.imageDisplaySize != imageDisplaySize ||
         oldDelegate.useOpenDyslexic != useOpenDyslexic ||
-        oldDelegate.fontSize != fontSize;
+        oldDelegate.fontSize != fontSize ||
+        oldDelegate.overlayOpacity != overlayOpacity;
   }
 }

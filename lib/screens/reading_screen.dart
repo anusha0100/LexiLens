@@ -10,24 +10,24 @@ import 'package:lexilens/services/text_selection_service.dart';
 import 'package:lexilens/services/syllable_service.dart';
 
 // ── Colour palette (never changes between states) ──────────────────────────
-const _kPrimary   = Color(0xFF7B4FA6);   // deep purple
-const _kAccent    = Color(0xFFB789DA);   // soft purple
-const _kSurface   = Color(0xFF1F1A2E);   // dark navy
-const _kOnSurface = Color(0xFFEDE0F7);   // lavender-white
-const _kBar       = Color(0xFF2D2545);   // darker bar background
+const _kPrimary   = Color(0xFF7B4FA6);
+const _kAccent    = Color(0xFFB789DA);
+const _kSurface   = Color(0xFF1F1A2E);
+const _kOnSurface = Color(0xFFEDE0F7);
+const _kBar       = Color(0xFF2D2545);
 
 // ── Part-of-speech colour coding ─────────────────────────────────────────────
 const _kPosColors = <String, Color>{
-  'noun':        Color(0xFF64B5F6), // sky-blue
-  'verb':        Color(0xFF81C784), // green
-  'adjective':   Color(0xFFFFD54F), // amber
-  'adverb':      Color(0xFFFF8A65), // orange
-  'pronoun':     Color(0xFFBA68C8), // violet
-  'preposition': Color(0xFF4DD0E1), // cyan
-  'conjunction': Color(0xFFF06292), // pink
-  'article':     Color(0xFFA5D6A7), // light green
-  'interjection':Color(0xFFFFCC80), // light orange
-  'other':       Color(0xFFB0BEC5), // blue-grey
+  'noun':        Color(0xFF64B5F6),
+  'verb':        Color(0xFF81C784),
+  'adjective':   Color(0xFFFFD54F),
+  'adverb':      Color(0xFFFF8A65),
+  'pronoun':     Color(0xFFBA68C8),
+  'preposition': Color(0xFF4DD0E1),
+  'conjunction': Color(0xFFF06292),
+  'article':     Color(0xFFA5D6A7),
+  'interjection':Color(0xFFFFCC80),
+  'other':       Color(0xFFB0BEC5),
 };
 
 // ── Minimal POS classifier ────────────────────────────────────────────────────
@@ -56,7 +56,6 @@ String _classifyPos(String word) {
   if (prepositions.contains(w))  return 'preposition';
   if (interjections.contains(w)) return 'interjection';
 
-  // Pattern-based heuristics
   if (w.endsWith('ly') && w.length > 4)                   return 'adverb';
   if (w.endsWith('ing') && w.length > 4)                  return 'verb';
   if (w.endsWith('ed') && w.length > 4)                   return 'verb';
@@ -70,7 +69,6 @@ String _classifyPos(String word) {
       w.endsWith('able') || w.endsWith('ible') ||
       w.endsWith('ic')   || w.endsWith('al'))              return 'adjective';
 
-  // Common short verbs
   const commonVerbs = {'is','are','was','were','be','been','being','have',
                        'has','had','do','does','did','will','would','shall',
                        'should','may','might','can','could','must','need',
@@ -81,7 +79,7 @@ String _classifyPos(String word) {
                        'run','set','sit','stand','turn','show','play','move'};
   if (commonVerbs.contains(w))                             return 'verb';
 
-  return 'noun'; // default for content words
+  return 'noun';
 }
 
 class ReadingScreen extends StatefulWidget {
@@ -96,112 +94,122 @@ class _ReadingScreenState extends State<ReadingScreen>
   final _textSelectionService = TextSelectionService();
   final _syllableService = SyllableService();
 
+  // ── FIX: Stop TTS immediately when the system back button is pressed ───────
+  Future<bool> _onWillPop() async {
+    context.read<AppBloc>().add(StopTextToSpeech());
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<AppBloc, AppState>(
-      builder: (context, state) {
-        final document = state.currentDocument;
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: BlocBuilder<AppBloc, AppState>(
+        builder: (context, state) {
+          final document = state.currentDocument;
 
-        if (document == null) {
-          return Scaffold(
-            backgroundColor: _kSurface,
-            appBar: AppBar(
-              backgroundColor: _kBar,
-              title: const Text(
-                'Reading',
-                style: TextStyle(color: _kOnSurface, fontFamily: 'OpenDyslexic'),
+          if (document == null) {
+            return Scaffold(
+              backgroundColor: _kSurface,
+              appBar: AppBar(
+                backgroundColor: _kBar,
+                title: const Text(
+                  'Reading',
+                  style: TextStyle(color: _kOnSurface, fontFamily: 'OpenDyslexic'),
+                ),
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back, color: _kOnSurface),
+                  onPressed: () {
+                    context.read<AppBloc>().add(StopTextToSpeech());
+                    Navigator.pop(context);
+                  },
+                ),
               ),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: _kOnSurface),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(color: _kAccent),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Loading document...',
-                    style: TextStyle(fontSize: 16, color: _kOnSurface,
-                        fontFamily: 'OpenDyslexic'),
-                  ),
-                  const SizedBox(height: 32),
-                  TextButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back, color: _kAccent),
-                    label: const Text(
-                      'Go Back',
-                      style: TextStyle(color: _kAccent,
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(color: _kAccent),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Loading document...',
+                      style: TextStyle(fontSize: 16, color: _kOnSurface,
                           fontFamily: 'OpenDyslexic'),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        final backgroundColor = _getBackgroundColor(state.selectedBackgroundColor);
-        final textColor       = _getTextColor(state.selectedTextColor);
-
-        return Scaffold(
-          backgroundColor: _kSurface,
-          appBar: _buildAppBar(context, state, document.name),
-          body: Column(
-            children: [
-              // ── Control panel ──────────────────────────────────────────────
-              _buildControlPanel(context, state),
-
-              // ── Reading area ───────────────────────────────────────────────
-              Expanded(
-                child: Stack(
-                  children: [
-                    InteractiveViewer(
-                      minScale: 1.0,
-                      maxScale: 3.0,
-                      onInteractionUpdate: (d) {
-                        if (d.scale != state.zoomLevel) {
-                          context.read<AppBloc>().add(AdjustZoom(d.scale));
-                        }
+                    const SizedBox(height: 32),
+                    TextButton.icon(
+                      onPressed: () {
+                        context.read<AppBloc>().add(StopTextToSpeech());
+                        Navigator.pop(context);
                       },
-                      child: Container(
-                        color: backgroundColor,
-                        padding: const EdgeInsets.all(24),
-                        width: MediaQuery.of(context).size.width,
-                        child: SingleChildScrollView(
-                          child: _buildText(context, state, document, textColor),
-                        ),
+                      icon: const Icon(Icons.arrow_back, color: _kAccent),
+                      label: const Text(
+                        'Go Back',
+                        style: TextStyle(color: _kAccent,
+                            fontFamily: 'OpenDyslexic'),
                       ),
                     ),
-                    if (state.isRulerEnabled)
-                      ReadingRuler(
-                        screenSize: MediaQuery.of(context).size,
-                        initialPosition: state.rulerPosition,
-                        onPositionChanged: (pos) =>
-                            context.read<AppBloc>().add(UpdateRulerPosition(pos)),
-                      ),
-                    if (state.zoomLevel > 1.0)
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: _ZoomBadge(
-                          zoom: state.zoomLevel,
-                          onReset: () => context.read<AppBloc>().add(ResetZoom()),
-                        ),
-                      ),
                   ],
                 ),
               ),
+            );
+          }
 
-              // ── Playback controls ──────────────────────────────────────────
-              _buildPlaybackBar(context, state, document),
-            ],
-          ),
-          bottomNavigationBar: _buildBottomBar(context, state),
-        );
-      },
+          final backgroundColor = _getBackgroundColor(state.selectedBackgroundColor);
+          final textColor       = _getTextColor(state.selectedTextColor);
+
+          return Scaffold(
+            backgroundColor: _kSurface,
+            appBar: _buildAppBar(context, state, document.name),
+            body: Column(
+              children: [
+                _buildControlPanel(context, state),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      InteractiveViewer(
+                        minScale: 1.0,
+                        maxScale: 3.0,
+                        onInteractionUpdate: (d) {
+                          if (d.scale != state.zoomLevel) {
+                            context.read<AppBloc>().add(AdjustZoom(d.scale));
+                          }
+                        },
+                        child: Container(
+                          color: backgroundColor,
+                          padding: const EdgeInsets.all(24),
+                          width: MediaQuery.of(context).size.width,
+                          child: SingleChildScrollView(
+                            child: _buildText(context, state, document, textColor),
+                          ),
+                        ),
+                      ),
+                      if (state.isRulerEnabled)
+                        ReadingRuler(
+                          screenSize: MediaQuery.of(context).size,
+                          initialPosition: state.rulerPosition,
+                          onPositionChanged: (pos) =>
+                              context.read<AppBloc>().add(UpdateRulerPosition(pos)),
+                        ),
+                      if (state.zoomLevel > 1.0)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: _ZoomBadge(
+                            zoom: state.zoomLevel,
+                            onReset: () => context.read<AppBloc>().add(ResetZoom()),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                _buildPlaybackBar(context, state, document),
+              ],
+            ),
+            bottomNavigationBar: _buildBottomBar(context, state),
+          );
+        },
+      ),
     );
   }
 
@@ -215,8 +223,8 @@ class _ReadingScreenState extends State<ReadingScreen>
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: _kOnSurface),
         onPressed: () {
-          // Pause (not stop) so TTS can be resumed when returning to this screen.
-          context.read<AppBloc>().add(PauseTextToSpeech());
+          // FIX: Stop (not pause) TTS on back so audio always halts immediately.
+          context.read<AppBloc>().add(StopTextToSpeech());
           Navigator.pop(context);
         },
       ),
@@ -360,15 +368,9 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
+  // ── FIX: Removed isSoundEnabled guard that was silently blocking TTS.
+  // The Sound toggle only controls its own icon/state; it no longer gates TTS.
   void _handlePlayPause(BuildContext context, AppState state, document) {
-    if (!state.isSoundEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Please enable sound first'),
-        backgroundColor: _kPrimary,
-        duration: Duration(seconds: 2),
-      ));
-      return;
-    }
     if (state.readingState == ReadingState.playing) {
       context.read<AppBloc>().add(PauseTextToSpeech());
     } else if (state.readingState == ReadingState.paused) {
@@ -394,7 +396,8 @@ class _ReadingScreenState extends State<ReadingScreen>
               IconButton(
                 icon: const Icon(Icons.home, color: _kOnSurface),
                 onPressed: () {
-                  context.read<AppBloc>().add(PauseTextToSpeech());
+                  // FIX: Stop TTS completely on home navigation.
+                  context.read<AppBloc>().add(StopTextToSpeech());
                   Navigator.pop(context);
                 },
               ),
@@ -448,7 +451,6 @@ class _ReadingScreenState extends State<ReadingScreen>
     }
 
     if (state.readingState == ReadingState.idle) {
-      // Interactive mode: each word is tappable.
       return Wrap(
         children: words.map((word) {
           final clean = _textSelectionService.cleanWord(word);
@@ -461,13 +463,11 @@ class _ReadingScreenState extends State<ReadingScreen>
             lineSpacing: state.lineSpacing,
             letterSpacing: fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
             isHighlighted: state.isHighlighted,
-            // Single tap: speak the tapped word via TTS.
             onTap: () {
               if (clean.isNotEmpty) {
                 context.read<AppBloc>().add(StartTextToSpeech(text: clean));
               }
             },
-            // Long-press: syllable breakdown bottom-sheet (FR-018).
             onLongPress: clean.isNotEmpty
                 ? () => _showWordDetail(context, clean)
                 : null,
@@ -476,7 +476,6 @@ class _ReadingScreenState extends State<ReadingScreen>
       );
     }
 
-    // TTS-playing mode: highlight current word.
     return RichText(
       text: TextSpan(
         children: words.asMap().entries.map((entry) {
@@ -547,7 +546,6 @@ class _ReadingScreenState extends State<ReadingScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Drag handle
               Container(
                 width: 36, height: 4,
                 decoration: BoxDecoration(
@@ -556,8 +554,6 @@ class _ReadingScreenState extends State<ReadingScreen>
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Syllabified word
               Text(
                 formatted,
                 textAlign: TextAlign.center,
@@ -569,10 +565,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                   letterSpacing: 4,
                 ),
               ),
-
               const SizedBox(height: 8),
-
-              // Syllable count
               Text(
                 '${syllables.length} syllable${syllables.length != 1 ? "s" : ""}',
                 style: TextStyle(
@@ -581,12 +574,9 @@ class _ReadingScreenState extends State<ReadingScreen>
                   fontFamily: 'OpenDyslexic',
                 ),
               ),
-
               const SizedBox(height: 20),
               Divider(color: _kAccent.withOpacity(0.25)),
               const SizedBox(height: 16),
-
-              // POS badge
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -623,10 +613,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                   ),
                 ],
               ),
-
               const SizedBox(height: 24),
-
-              // Syllable chips
               Wrap(
                 spacing: 10,
                 runSpacing: 8,
@@ -659,7 +646,6 @@ class _ReadingScreenState extends State<ReadingScreen>
                   );
                 }).toList(),
               ),
-
               const SizedBox(height: 20),
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -676,7 +662,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Settings dialog (unchanged logic, refined style) ──────────────────────
+  // ── Settings dialog ──────────────────────────────────────────────────────
 
   void _showSettingsDialog(BuildContext context, AppState state) {
     showDialog(
@@ -919,7 +905,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Colour helpers (unchanged) ─────────────────────────────────────────────
+  // ── Colour helpers ─────────────────────────────────────────────────────────
 
   Color _getBackgroundColor(int index) {
     const colors = [
@@ -960,7 +946,6 @@ class _TappableWord extends StatefulWidget {
   final double letterSpacing;
   final bool isHighlighted;
   final VoidCallback onTap;
-  // FR-018: long-press triggers syllable breakdown popup
   final VoidCallback? onLongPress;
 
   const _TappableWord({
@@ -1009,7 +994,6 @@ class _TappableWordState extends State<_TappableWord>
         _ctrl.reverse();
         widget.onTap();
       },
-      // FR-018: long-press shows syllable breakdown for the tapped word
       onLongPress: widget.onLongPress,
       child: ScaleTransition(
         scale: _scale,

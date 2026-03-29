@@ -10,7 +10,6 @@ import 'package:lexilens/screens/reading_screen.dart';
 import 'package:lexilens/screens/upload_pdf_screen.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 
-// FR-025: DocumentsScreen is now stateful so it can hold the search query.
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
 
@@ -30,19 +29,23 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // FIX: Derive colours from the active theme so dark mode is respected.
+    final theme       = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'My Documents',
           style: TextStyle(
-            color: Colors.black,
+            color: colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.bold,
             fontFamily: 'OpenDyslexic',
@@ -50,7 +53,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
+            icon: Icon(Icons.refresh, color: colorScheme.onSurface),
             onPressed: () {
               context.read<AppBloc>().add(LoadDocuments());
               ScaffoldMessenger.of(context).showSnackBar(
@@ -66,32 +69,31 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       ),
       body: BlocBuilder<AppBloc, AppState>(
         builder: (context, state) {
-          // FR-025: Filter documents by search query
           final allDocs = state.recentDocuments;
           final docs = _query.isEmpty
               ? allDocs
               : allDocs
                   .where((d) =>
-                      d.name
-                          .toLowerCase()
-                          .contains(_query.toLowerCase()) ||
-                      d.content
-                          .toLowerCase()
-                          .contains(_query.toLowerCase()))
+                      d.name.toLowerCase().contains(_query.toLowerCase()) ||
+                      d.content.toLowerCase().contains(_query.toLowerCase()))
                   .toList();
 
           return Column(
             children: [
-              // ── Search bar (FR-025) ────────────────────────────────────
+              // ── Search bar ────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 child: TextField(
                   controller: _searchController,
                   onChanged: (v) => setState(() => _query = v.trim()),
-                  style: const TextStyle(fontFamily: 'OpenDyslexic'),
+                  style: TextStyle(
+                      fontFamily: 'OpenDyslexic',
+                      color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     hintText: 'Search documents…',
-                    hintStyle: const TextStyle(fontFamily: 'OpenDyslexic'),
+                    hintStyle: TextStyle(
+                        fontFamily: 'OpenDyslexic',
+                        color: colorScheme.onSurface.withOpacity(0.45)),
                     prefixIcon:
                         const Icon(Icons.search, color: Color(0xFFB789DA)),
                     suffixIcon: _query.isNotEmpty
@@ -104,7 +106,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                           )
                         : null,
                     filled: true,
-                    fillColor: Colors.grey[100],
+                    fillColor: colorScheme.surfaceVariant,
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 12),
                     border: OutlineInputBorder(
@@ -115,7 +117,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                 ),
               ),
 
-              // ── Document count ─────────────────────────────────────────
+              // ── Document count ─────────────────────────────────────────────
               if (allDocs.isNotEmpty)
                 Padding(
                   padding:
@@ -128,7 +130,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                             : '${docs.length} of ${allDocs.length} documents',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey[600],
+                          color: colorScheme.onSurface.withOpacity(0.55),
                           fontFamily: 'OpenDyslexic',
                         ),
                       ),
@@ -136,7 +138,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   ),
                 ),
 
-              // ── Document list / empty state ────────────────────────────
+              // ── Document list / empty state ────────────────────────────────
               Expanded(
                 child: docs.isEmpty
                     ? Center(
@@ -148,7 +150,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                                   ? Icons.search_off
                                   : Icons.description_outlined,
                               size: 80,
-                              color: Colors.grey[300],
+                              color: colorScheme.onSurface.withOpacity(0.25),
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -158,7 +160,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 18,
-                                color: Colors.grey[600],
+                                color: colorScheme.onSurface.withOpacity(0.55),
                                 fontFamily: 'OpenDyslexic',
                               ),
                             ),
@@ -169,7 +171,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Colors.grey[500],
+                                  color:
+                                      colorScheme.onSurface.withOpacity(0.4),
                                   fontFamily: 'OpenDyslexic',
                                 ),
                               ),
@@ -186,7 +189,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                             document: doc,
                             searchQuery: _query,
                             onTap: () {
-                              context.read<AppBloc>().add(OpenDocument(doc.id));
+                              context
+                                  .read<AppBloc>()
+                                  .add(OpenDocument(doc.id));
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -284,10 +289,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         },
         backgroundColor: const Color(0xFFB789DA),
         icon: const Icon(Icons.add),
-        label: const Text(
-          'Upload',
-          style: TextStyle(fontFamily: 'OpenDyslexic'),
-        ),
+        label: const Text('Upload',
+            style: TextStyle(fontFamily: 'OpenDyslexic')),
       ),
     );
   }
@@ -311,28 +314,25 @@ class _DocumentCard extends StatelessWidget {
   });
 
   String _getTimeAgo(DateTime date) {
-    final now = DateTime.now();
+    final now  = DateTime.now();
     final diff = now.difference(date);
-    if (diff.inDays > 0) return '${diff.inDays}d ago';
-    if (diff.inHours > 0) return '${diff.inHours}h ago';
+    if (diff.inDays > 0)    return '${diff.inDays}d ago';
+    if (diff.inHours > 0)   return '${diff.inHours}h ago';
     if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
     return 'Just now';
   }
 
-  // Highlight matching text in search results
   Widget _highlightText(String text, String query,
       {TextStyle? baseStyle, int? maxLines}) {
     if (query.isEmpty) {
-      return Text(
-        text,
-        style: baseStyle,
-        maxLines: maxLines,
-        overflow: maxLines != null ? TextOverflow.ellipsis : null,
-      );
+      return Text(text,
+          style: baseStyle,
+          maxLines: maxLines,
+          overflow: maxLines != null ? TextOverflow.ellipsis : null);
     }
-    final lower = text.toLowerCase();
+    final lower  = text.toLowerCase();
     final qLower = query.toLowerCase();
-    final spans = <TextSpan>[];
+    final spans  = <TextSpan>[];
     int start = 0;
     while (true) {
       final idx = lower.indexOf(qLower, start);
@@ -341,7 +341,8 @@ class _DocumentCard extends StatelessWidget {
         break;
       }
       if (idx > start) {
-        spans.add(TextSpan(text: text.substring(start, idx), style: baseStyle));
+        spans.add(
+            TextSpan(text: text.substring(start, idx), style: baseStyle));
       }
       spans.add(TextSpan(
         text: text.substring(idx, idx + query.length),
@@ -355,16 +356,19 @@ class _DocumentCard extends StatelessWidget {
     return RichText(
       text: TextSpan(children: spans),
       maxLines: maxLines,
-      overflow: maxLines != null ? TextOverflow.ellipsis : TextOverflow.clip,
+      overflow:
+          maxLines != null ? TextOverflow.ellipsis : TextOverflow.clip,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -402,7 +406,7 @@ class _DocumentCard extends StatelessWidget {
                       _getTimeAgo(document.uploadedDate),
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: colorScheme.onSurface.withOpacity(0.55),
                         fontFamily: 'OpenDyslexic',
                       ),
                     ),
@@ -410,13 +414,14 @@ class _DocumentCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(Icons.text_snippet,
-                            size: 14, color: Colors.grey[500]),
+                            size: 14,
+                            color: colorScheme.onSurface.withOpacity(0.45)),
                         const SizedBox(width: 4),
                         Text(
                           '${document.content.length} characters',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey[600],
+                            color: colorScheme.onSurface.withOpacity(0.55),
                             fontFamily: 'OpenDyslexic',
                           ),
                         ),
@@ -426,7 +431,8 @@ class _DocumentCard extends StatelessWidget {
                 ),
               ),
               PopupMenuButton(
-                icon: const Icon(Icons.more_vert),
+                icon: Icon(Icons.more_vert,
+                    color: colorScheme.onSurface),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
                 itemBuilder: (context) => [

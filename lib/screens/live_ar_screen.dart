@@ -28,7 +28,6 @@ const _kPrimary = Color(0xFF7B4FA6);
 const _kAccent = Color(0xFFB789DA);
 
 /// Minimum interval between successive OCR calls (ms).
-/// Keeps CPU/GPU load manageable while meeting the 200 ms SRS requirement.
 const _kOcrThrottleMs = 200;
 
 // ---------------------------------------------------------------------------
@@ -80,7 +79,6 @@ class _LiveArScreenState extends State<LiveArScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Apply user preferences from the bloc on first load.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final s = context.read<AppBloc>().state;
@@ -116,7 +114,7 @@ class _LiveArScreenState extends State<LiveArScreen>
 
       _controller = CameraController(
         _cameras![0],
-        ResolutionPreset.medium, // medium = ~720p, good balance for OCR speed
+        ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
             ? ImageFormatGroup.nv21
@@ -147,7 +145,6 @@ class _LiveArScreenState extends State<LiveArScreen>
   // ── Frame handler ────────────────────────────────────────────────────────
 
   Future<void> _onCameraImage(CameraImage image) async {
-    // Throttle to avoid queuing more work than the OCR engine can handle
     final now = DateTime.now();
     if (_processingFrame ||
         now.difference(_lastOcrTime).inMilliseconds < _kOcrThrottleMs) {
@@ -160,10 +157,8 @@ class _LiveArScreenState extends State<LiveArScreen>
       final inputImage = _buildInputImage(image);
       if (inputImage == null) return;
 
-      // Run Latin recogniser (covers EN/ES/FR/DE/IT/PT etc.)
       final result = await _latinRecognizer.processImage(inputImage);
 
-      // Quick Devanagari check – only if Latin yields nothing
       List<TextBlock> blocks = result.blocks;
       if (blocks.isEmpty || result.text.trim().isEmpty) {
         final devResult =
@@ -237,19 +232,22 @@ class _LiveArScreenState extends State<LiveArScreen>
     final screenSize = MediaQuery.of(context).size;
     final touchPos = details.localPosition;
 
-    // Convert touch position to image-space coordinates
-    final scaleX = _imageSize.width / screenSize.width;
-    final scaleY = _imageSize.height / screenSize.height;
+    final bool rotated = _frameRotation == 90 || _frameRotation == 270;
+    final double imageW = rotated ? _imageSize.height : _imageSize.width;
+    final double imageH = rotated ? _imageSize.width : _imageSize.height;
+
+    final scaleX = screenSize.width / imageW;
+    final scaleY = screenSize.height / imageH;
 
     for (final block in _textBlocks) {
       for (final line in block.lines) {
         for (final element in line.elements) {
           final box = element.boundingBox;
           final scaledBox = Rect.fromLTRB(
-            box.left / scaleX,
-            box.top / scaleY,
-            box.right / scaleX,
-            box.bottom / scaleY,
+            box.left * scaleX,
+            box.top * scaleY,
+            box.right * scaleX,
+            box.bottom * scaleY,
           );
           if (scaledBox.contains(touchPos)) {
             final word =
@@ -262,7 +260,6 @@ class _LiveArScreenState extends State<LiveArScreen>
                 _tappedSyllables = syllables;
                 _tappedPosition = details.globalPosition;
               });
-              // Auto-dismiss after 3 s
               Future.delayed(
                   const Duration(seconds: 3),
                   () => mounted
@@ -393,7 +390,6 @@ class _LiveArScreenState extends State<LiveArScreen>
                   onPressed: () => Navigator.pop(context),
                 ),
                 const Spacer(),
-                // AR badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 10, vertical: 4),
@@ -467,7 +463,6 @@ class _LiveArScreenState extends State<LiveArScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Word count indicator
             Text(
               _textBlocks.isEmpty
                   ? 'Point at text to begin'
@@ -597,7 +592,9 @@ class _LiveArScreenState extends State<LiveArScreen>
 }
 
 // ---------------------------------------------------------------------------
-// Live overlay painter
+// Live overlay painter  — FIX: x resets per line; layout uses unconstrained
+// width so OpenDyslexic glyphs are never clipped; background height is padded
+// to accommodate the font's larger descenders/ascenders.
 // ---------------------------------------------------------------------------
 class _LiveOverlayPainter extends CustomPainter {
   final List<TextBlock> textBlocks;
@@ -620,9 +617,8 @@ class _LiveOverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (imageSize == Size.zero) return;
 
-    // The camera stream is typically landscape even when the phone is portrait.
-    // We scale coordinates using the canvas size vs. image size, accounting for
-    // sensor rotation so blocks appear in the right place on screen.
+    // Account for sensor rotation so bounding-box coordinates map correctly
+    // onto portrait-mode screen space.
     final bool rotated = sensorRotation == 90 || sensorRotation == 270;
     final double imageW = rotated ? imageSize.height : imageSize.width;
     final double imageH = rotated ? imageSize.width : imageSize.height;
@@ -644,51 +640,64 @@ class _LiveOverlayPainter extends CustomPainter {
           box.bottom * scaleY,
         );
 
-        // Background pill
+        final lineHeight = scaledRect.height;
+        // FIX: Add vertical padding so OpenDyslexic ascenders/descenders are
+        // fully visible inside the background pill.
+        final double vPad = useOpenDyslexic ? lineHeight * 0.25 : 3.0;
+
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            scaledRect.inflate(3),
+            scaledRect.inflate(vPad),
             const Radius.circular(4),
           ),
           bgPaint,
         );
 
-        // Text
-        final lineHeight = scaledRect.height;
-        final clampedSize = lineHeight.clamp(8.0, fontSize);
+        if (line.elements.isNotEmpty) {
+          // FIX: reset x to the left edge of this line on every iteration.
+          double x = scaledRect.left + 2;
 
-        double x = scaledRect.left + 2;
-        for (final element in line.elements) {
-          final wordBox = element.boundingBox;
-          final wordWidth = wordBox.width * scaleX;
-          final wordHeight = wordBox.height * scaleY;
+          for (final element in line.elements) {
+            final wordBox = element.boundingBox;
+            final wordHeight = wordBox.height * scaleY;
 
+            // FIX: use fontSize (user setting) as the target size, clamped to
+            // the detected word height so the text fits within the bounding box.
+            final double targetSize =
+                fontSize.clamp(8.0, wordHeight.clamp(8.0, fontSize + 4));
+
+            final style = TextStyle(
+              color: Colors.black87,
+              fontSize: targetSize,
+              fontFamily: useOpenDyslexic ? 'OpenDyslexic' : null,
+              fontWeight: FontWeight.w500,
+              height: 1.0,
+              letterSpacing: useOpenDyslexic ? 0.5 : 0,
+            );
+
+            final tp = TextPainter(
+              text: TextSpan(text: element.text, style: style),
+              textDirection: TextDirection.ltr,
+              maxLines: 1,
+              // FIX: layout without a maxWidth constraint so OpenDyslexic
+              // glyphs (which are wider than system fonts) are never truncated.
+            )..layout();
+
+            // Vertically centre text within the background rect.
+            final double bgTop = scaledRect.top - vPad;
+            final double bgHeight = lineHeight + vPad * 2;
+            final textY = bgTop + (bgHeight - tp.height) / 2;
+
+            tp.paint(canvas, Offset(x, textY));
+            // FIX: advance x by the actual painted width plus a small gap.
+            x += tp.width + (useOpenDyslexic ? 6.0 : 4.0);
+          }
+        } else {
+          // Fallback: no per-word elements – render the whole line text.
+          final double targetSize = lineHeight.clamp(8.0, fontSize);
           final style = TextStyle(
             color: Colors.black87,
-            fontSize: wordHeight.clamp(7.0, clampedSize),
-            fontFamily: useOpenDyslexic ? 'OpenDyslexic' : null,
-            fontWeight: FontWeight.w500,
-            height: 1.0,
-            letterSpacing: useOpenDyslexic ? 0.5 : 0,
-          );
-
-          final tp = TextPainter(
-            text: TextSpan(text: element.text, style: style),
-            textDirection: TextDirection.ltr,
-            maxLines: 1,
-          )..layout(maxWidth: wordWidth + 4);
-
-          final textY =
-              scaledRect.top + (lineHeight - tp.height) / 2;
-          tp.paint(canvas, Offset(x, textY));
-          x += tp.width + 4;
-        }
-
-        // Fallback if no per-word elements
-        if (line.elements.isEmpty) {
-          final style = TextStyle(
-            color: Colors.black87,
-            fontSize: clampedSize,
+            fontSize: targetSize,
             fontFamily: useOpenDyslexic ? 'OpenDyslexic' : null,
             fontWeight: FontWeight.w500,
             height: 1.0,
@@ -697,9 +706,12 @@ class _LiveOverlayPainter extends CustomPainter {
             text: TextSpan(text: line.text, style: style),
             textDirection: TextDirection.ltr,
             maxLines: 1,
-          )..layout(maxWidth: scaledRect.width);
-          tp.paint(canvas,
-              Offset(scaledRect.left + 2, scaledRect.top + 2));
+          )..layout();
+
+          final double bgTop = scaledRect.top - 3;
+          final double bgHeight = lineHeight + 6;
+          final textY = bgTop + (bgHeight - tp.height) / 2;
+          tp.paint(canvas, Offset(scaledRect.left + 2, textY));
         }
       }
     }
@@ -711,7 +723,8 @@ class _LiveOverlayPainter extends CustomPainter {
       old.imageSize != imageSize ||
       old.useOpenDyslexic != useOpenDyslexic ||
       old.fontSize != fontSize ||
-      old.opacity != opacity;
+      old.opacity != opacity ||
+      old.sensorRotation != sensorRotation;
 }
 
 // ---------------------------------------------------------------------------

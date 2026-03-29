@@ -29,10 +29,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // FIX: Use theme-aware colours so dark mode propagates correctly.
+    final theme     = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      // Let the MaterialApp darkTheme scaffold background take effect.
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         title: const Text(
           'LexiLens',
@@ -45,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black),
+            icon: Icon(Icons.menu, color: colorScheme.onSurface),
             onPressed: () {
               Navigator.push(
                 context,
@@ -72,13 +77,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       width: 50,
                       height: 50,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(0xFFE8D5F0),
+                        color: Color(0xFFE8D5F0),
                       ),
                       child: Center(
                         child: Text(
-                          state.userName.isNotEmpty 
+                          state.userName.isNotEmpty
                               ? state.userName[0].toUpperCase()
                               : 'U',
                           style: const TextStyle(
@@ -97,18 +102,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             'Welcome, ${state.userName}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                               fontFamily: 'OpenDyslexic',
+                              color: colorScheme.onSurface,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
-                          const Text(
+                          Text(
                             'Ready To Make Your Day Easy?',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey,
+                              color: colorScheme.onSurface.withOpacity(0.55),
                               fontFamily: 'OpenDyslexic',
                             ),
                           ),
@@ -118,12 +124,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 30),
-                const Text(
+                Text(
                   'Tools',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     fontFamily: 'OpenDyslexic',
+                    color: colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -150,7 +157,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text('No documents available. Please scan or upload a document first.'),
+                                content: Text(
+                                    'No documents available. Please scan or upload a document first.'),
                                 backgroundColor: Color(0xFFB789DA),
                               ),
                             );
@@ -225,7 +233,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                // FR-005 to FR-009: Live AR OCR entry point
                 Row(
                   children: [
                     Expanded(
@@ -249,17 +256,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(height: 30),
-
-                // Recent Documents Section
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Recent Documents',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         fontFamily: 'OpenDyslexic',
+                        color: colorScheme.onSurface,
                       ),
                     ),
                     TextButton(
@@ -275,17 +281,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         );
                       },
-                      child: const Row(
-                        children: [
-                          Text(
-                            'Tap Any File To Resume',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                              fontFamily: 'OpenDyslexic',
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        'Tap Any File To Resume',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurface.withOpacity(0.55),
+                          fontFamily: 'OpenDyslexic',
+                        ),
                       ),
                     ),
                   ],
@@ -296,8 +298,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     : ListView.builder(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        itemCount: state.recentDocuments.length > 3 
-                            ? 3 
+                        itemCount: state.recentDocuments.length > 3
+                            ? 3
                             : state.recentDocuments.length,
                         itemBuilder: (context, index) {
                           final doc = state.recentDocuments[index];
@@ -316,7 +318,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                             },
                             onDelete: () {
-                              context.read<AppBloc>().add(DeleteDocument(doc.id));
+                              context
+                                  .read<AppBloc>()
+                                  .add(DeleteDocument(doc.id));
                             },
                           );
                         },
@@ -330,7 +334,6 @@ class _HomeScreenState extends State<HomeScreen> {
         onNavigate: (index) {
           switch (index) {
             case 0:
-              // Already on home
               break;
             case 1:
               context.read<AppBloc>().add(NavigateToScan());
@@ -387,21 +390,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(32),
       child: Column(
         children: [
-          Icon(
-            Icons.description_outlined,
-            size: 64,
-            color: Colors.grey[300],
-          ),
+          Icon(Icons.description_outlined, size: 64,
+              color: colorScheme.onSurface.withOpacity(0.25)),
           const SizedBox(height: 16),
           Text(
             'No documents yet',
             style: TextStyle(
               fontSize: 16,
-              color: Colors.grey[600],
+              color: colorScheme.onSurface.withOpacity(0.55),
               fontFamily: 'OpenDyslexic',
             ),
           ),
@@ -411,7 +412,7 @@ class _HomeScreenState extends State<HomeScreen> {
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
-              color: Colors.grey[500],
+              color: colorScheme.onSurface.withOpacity(0.4),
               fontFamily: 'OpenDyslexic',
             ),
           ),
@@ -444,7 +445,6 @@ class _ToolCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.3)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -482,7 +482,6 @@ class _DocumentCard extends StatelessWidget {
   String _getTimeAgo(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-
     if (difference.inDays > 0) {
       return 'Opened ${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
     } else if (difference.inHours > 0) {
@@ -494,42 +493,36 @@ class _DocumentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         leading: Container(
           width: 50,
           height: 70,
           decoration: BoxDecoration(
-            color: Colors.grey[200],
+            color: colorScheme.surfaceVariant,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(
-            Icons.description,
-            color: Color(0xFFB789DA),
-          ),
+          child: const Icon(Icons.description, color: Color(0xFFB789DA)),
         ),
         title: Text(
           document.name,
           style: const TextStyle(
-            fontWeight: FontWeight.w600,
-            fontFamily: 'OpenDyslexic',
-          ),
+              fontWeight: FontWeight.w600, fontFamily: 'OpenDyslexic'),
         ),
         subtitle: Text(
           _getTimeAgo(document.uploadedDate),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: Colors.grey,
+            color: colorScheme.onSurface.withOpacity(0.55),
             fontFamily: 'OpenDyslexic',
           ),
         ),
         trailing: PopupMenuButton(
-          icon: const Icon(Icons.more_vert),
+          icon: Icon(Icons.more_vert, color: colorScheme.onSurface),
           itemBuilder: (context) => [
             PopupMenuItem(
               onTap: onDelete,
@@ -545,7 +538,6 @@ class _DocumentCard extends StatelessWidget {
 
 class _BottomNavBar extends StatelessWidget {
   final Function(int) onNavigate;
-
   const _BottomNavBar({required this.onNavigate});
 
   @override
@@ -555,30 +547,16 @@ class _BottomNavBar extends StatelessWidget {
         return BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           selectedItemColor: const Color(0xFFB789DA),
-          unselectedItemColor: Colors.grey,
+          unselectedItemColor:
+              Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
           currentIndex: 0,
           onTap: onNavigate,
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.camera_alt),
-              label: 'Scan',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.description),
-              label: 'Docs',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.filter_alt),
-              label: 'Filter',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.settings),
-              label: 'Setting',
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.home),        label: 'Home'),
+            BottomNavigationBarItem(icon: Icon(Icons.camera_alt),  label: 'Scan'),
+            BottomNavigationBarItem(icon: Icon(Icons.description), label: 'Docs'),
+            BottomNavigationBarItem(icon: Icon(Icons.filter_alt),  label: 'Filter'),
+            BottomNavigationBarItem(icon: Icon(Icons.settings),    label: 'Setting'),
           ],
         );
       },
