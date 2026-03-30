@@ -865,7 +865,11 @@ class OverlayStyle extends CustomPainter {
     
         final scaleX = renderedSize.width  / imageActualSize.width;
         final scaleY = renderedSize.height / imageActualSize.height;
-    
+        final boundingBox = line.boundingBox;
+        final left   = boundingBox.left   * scaleX + offsetX;
+        final top    = boundingBox.top    * scaleY + offsetY;
+        final right  = boundingBox.right  * scaleX + offsetX;
+        final bottom = boundingBox.bottom * scaleY + offsetY;
         final scaledRect = Rect.fromLTRB(left, top, right, bottom);
         final lineHeight = scaledRect.height;
         final lineText   = line.text;
