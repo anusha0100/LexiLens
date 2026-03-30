@@ -27,6 +27,102 @@ const _kThrottleMs = 600;
 // actually cleared.  This prevents a single bad frame from wiping legible text.
 const _kEmptyFramesToClear = 5;
 
+// ── Stabilization constants ────────────────────────────────────────────────
+// Only show text when it has been seen this many times consistently
+const _kStabilizationThreshold = 2;
+
+// How long to keep text visible even if it disappears (ms)
+const _kTextStalenessMs = 3000;
+
+// ── StabilizedTextBlock: Anti-flicker wrapper for detected text ───────────────
+/// Wraps ML Kit TextBlock with stability tracking to prevent rapid flickering.
+class StabilizedTextBlock {
+  final TextBlock mlBlock;  // Original ML Kit block
+  int seenCount = 0;        // How many consecutive frames detected this
+  int stalePenalties = 0;   // Increases when text differs slightly
+  DateTime lastSeen;        // For timeout-based removal
+  bool isStable = false;    // Only true when seenCount >= _kStabilizationThreshold
+
+  StabilizedTextBlock(this.mlBlock) : lastSeen = DateTime.now();
+
+  /// Increment the seen counter; become stable when threshold is met
+  void incrementSeen() {
+    seenCount++;
+    lastSeen = DateTime.now();
+    isStable = seenCount >= _kStabilizationThreshold;
+  }
+
+  /// Reset counter when text changes significantly
+  void reset() {
+    seenCount = 0;
+    isStable = false;
+    stalePenalties++;
+  }
+
+  /// Check if this block is too old (remove after 3s of not being seen)
+  bool isStale() {
+    return DateTime.now().difference(lastSeen).inMilliseconds > _kTextStalenessMs;
+  }
+}
+
+// ── TextStabilizer: Manages the stabilization buffer ─────────────────────────
+/// Smooths out OCR noise by maintaining a memory of detected text blocks.
+/// Only displays text when it's been consistently detected across multiple frames.
+class TextStabilizer {
+  final Map<String, StabilizedTextBlock> _textMemory = {};
+
+  /// Update with new detected blocks from OCR
+  /// Returns only the STABLE text blocks safe to display
+  List<StabilizedTextBlock> updateWithNewBlocks(List<TextBlock> newBlocks) {
+    // Mark all existing blocks as "not seen this frame"
+    final seenKeys = <String>{};
+
+    // Process each new block
+    for (final block in newBlocks) {
+      final key = _getBlockKey(block);
+      seenKeys.add(key);
+
+      if (_textMemory.containsKey(key)) {
+        // Text seen again → increment stability
+        _textMemory[key]!.incrementSeen();
+      } else {
+        // New text → add to memory with seenCount = 0
+        _textMemory[key] = StabilizedTextBlock(block);
+      }
+    }
+
+    // Remove text blocks that weren't detected this frame AND are stale
+    _textMemory.removeWhere((key, block) {
+      if (!seenKeys.contains(key)) {
+        // Not in this frame - increment penalties and check staleness
+        block.reset();
+        return block.isStale();
+      }
+      return false;
+    });
+
+    // Return only stable blocks
+    return _textMemory.values
+        .where((block) => block.isStable)
+        .toList();
+  }
+
+  /// Generate a unique key for a text block based on content and position
+  String _getBlockKey(TextBlock block) {
+    // Use text + approximate position as key
+    final text = block.text.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+    final posKey = 
+        '${block.boundingBox.left.toStringAsFixed(0)}_'
+        '${block.boundingBox.top.toStringAsFixed(0)}';
+    return '$text|$posKey';
+  }
+
+  /// Clear all memory
+  void clear() {
+    _textMemory.clear();
+  }
+}
+
 class LiveArScreen extends StatefulWidget {
   const LiveArScreen({super.key});
   @override
@@ -60,6 +156,11 @@ class _LiveArScreenState extends State<LiveArScreen>
   // FIX: Track consecutive empty frames so we don't wipe the overlay on a
   // single blurry / transitional frame.
   int _emptyFrameCount = 0;
+
+  // ── Anti-flicker stabilization ────────────────────────────────────────────
+  // Tracks text blocks across frames to prevent rapid flickering.
+  // Only displays blocks when they've been seen consistently (seenCount >= 2).
+  late final TextStabilizer _stabilizer = TextStabilizer();
 
   // ── UI controls ───────────────────────────────────────────────────────────
   bool   _useOpenDyslexic = true;
@@ -201,10 +302,15 @@ class _LiveArScreenState extends State<LiveArScreen>
       if (devResult.text.isNotEmpty) blocks = devResult.blocks;
     }
 
+    // ── Stabilization: Filter blocks through memory buffer ─────────────────────
+    // Only display blocks that have been seen consistently (seenCount >= threshold).
+    // This prevents flicker from brief, transient detections.
+    final stabilizedBlocks = _stabilizer.updateWithNewBlocks(blocks);
+
     // FIX: Stability — only clear the overlay after _kEmptyFramesToClear
     // consecutive empty results.  This prevents a single blurry frame from
     // making the overlay vanish and reappear (flicker).
-    if (blocks.isEmpty) {
+    if (stabilizedBlocks.isEmpty) {
       _emptyFrameCount++;
       if (_emptyFrameCount < _kEmptyFramesToClear) {
         // Keep the existing overlay; do not schedule a rebuild.
@@ -215,7 +321,10 @@ class _LiveArScreenState extends State<LiveArScreen>
       _emptyFrameCount = 0;
     }
 
-    _pendingBlocks    = blocks;
+    // Convert StabilizedTextBlock back to TextBlock for rendering
+    final displayBlocks = stabilizedBlocks.map((s) => s.mlBlock).toList();
+
+    _pendingBlocks    = displayBlocks;
     _pendingImageSize = Size(image.width.toDouble(), image.height.toDouble());
 
     if (!_pendingScheduled) {
@@ -336,6 +445,7 @@ InputImage? _buildInputImage(CameraImage image) {
     _controller?.dispose();
     _recognizer.close();
     _devRecognizer.close();
+    _stabilizer.clear();  // Clean up the text memory buffer
     super.dispose();
   }
 
@@ -357,18 +467,23 @@ InputImage? _buildInputImage(CameraImage image) {
           else
             const Center(child: CircularProgressIndicator(color: _kAccent)),
 
-          // AR overlay
+          // AR overlay with fade-in animation
           if (_cameraReady && _overlayVisible &&
               _textBlocks.isNotEmpty && _imageSize != Size.zero)
             Positioned.fill(
-              child: CustomPaint(
-                painter: _LiveOverlayPainter(
-                  textBlocks:    _textBlocks,
-                  imageSize:     _imageSize,
-                  useOpenDyslexic: _useOpenDyslexic,
-                  fontSize:      _fontSize,
-                  opacity:       _overlayOpacity,
-                  sensorRotation: _sensorRotation,
+              child: AnimatedOpacity(
+                opacity: _textBlocks.isNotEmpty ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: CustomPaint(
+                  painter: _LiveOverlayPainter(
+                    textBlocks:    _textBlocks,
+                    imageSize:     _imageSize,
+                    useOpenDyslexic: _useOpenDyslexic,
+                    fontSize:      _fontSize,
+                    opacity:       _overlayOpacity,
+                    sensorRotation: _sensorRotation,
+                  ),
                 ),
               ),
             ),
