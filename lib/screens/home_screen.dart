@@ -540,6 +540,19 @@ class _BottomNavBar extends StatelessWidget {
   final Function(int) onNavigate;
   const _BottomNavBar({required this.onNavigate});
 
+  // FIX: Map AppTab enum values to their corresponding BottomNavigationBar
+  // index so the selected indicator always reflects the active tab instead of
+  // being permanently stuck at index 0 (Home).
+  int _tabToIndex(AppTab tab) {
+    switch (tab) {
+      case AppTab.home:     return 0;
+      case AppTab.scan:     return 1;
+      case AppTab.docs:     return 2;
+      case AppTab.filter:   return 3;
+      case AppTab.settings: return 4;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AppBloc, AppState>(
@@ -549,7 +562,9 @@ class _BottomNavBar extends StatelessWidget {
           selectedItemColor: const Color(0xFFB789DA),
           unselectedItemColor:
               Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
-          currentIndex: 0,
+          // FIX: Was hardcoded 0 — now driven by the bloc state so the
+          // correct tab is highlighted after navigation.
+          currentIndex: _tabToIndex(state.currentTab),
           onTap: onNavigate,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home),        label: 'Home'),

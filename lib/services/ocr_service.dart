@@ -116,18 +116,38 @@ class OCRService {
       RecognizedText recognizedText;
       String         detectedScript;
 
+      // FIX: Old logic compared total non-space char counts, which meant OCR
+      // noise (digits, punctuation) in the Devanagari pass could match or
+      // exceed the Latin letter count and cause wrong script selection.
+      //
+      // New approach:
+      //  1. Count *only* true Devanagari Unicode codepoints (U+0900–U+097F)
+      //     as the Devanagari signal — not the full non-space char count.
+      //  2. Require at least 3 real Devanagari chars AND a confidence ratio
+      //     ≥ 30 % of the Devanagari result's total non-space chars before
+      //     committing to the Devanagari script.
+      //  3. Latin letter count strips digits/punctuation to avoid inflating
+      //     the Latin score with shared numeric characters.
       final devCharCount  = RegExp(r'[\u0900-\u097F]')
           .allMatches(devanagariResult.text).length;
-      final latinCharCount = latinResult.text.replaceAll(RegExp(r'\s'), '').length;
-      final devTotalChars  = devanagariResult.text.replaceAll(RegExp(r'\s'), '').length;
+      // Latin letters only (strip whitespace, digits, punctuation).
+      final latinCharCount = latinResult.text
+          .replaceAll(RegExp(r'[^\p{L}]', unicode: true), '').length;
+      final devTotalNonSpace = devanagariResult.text
+          .replaceAll(RegExp(r'\s'), '').length;
 
-      if (devCharCount > 0 && devTotalChars >= latinCharCount * 0.8) {
+      final double devRatio =
+          devTotalNonSpace > 0 ? devCharCount / devTotalNonSpace : 0.0;
+
+      if (devCharCount >= 3 && devRatio >= 0.3) {
+        // Strong Devanagari signal.
         recognizedText = devanagariResult;
         detectedScript = 'Devanagari';
       } else if (latinCharCount > 0) {
         recognizedText = latinResult;
         detectedScript = 'Latin';
-      } else if (devTotalChars > 0) {
+      } else if (devCharCount > 0) {
+        // Weak Devanagari signal but no Latin letters — still prefer it.
         recognizedText = devanagariResult;
         detectedScript = 'Devanagari';
       } else {
@@ -195,9 +215,16 @@ class OCRService {
       final devResult =
           await _devanagariTextRecognizer.processImage(inputImage);
 
-      final hasDevanagari =
-          RegExp(r'[\u0900-\u097F]').hasMatch(devResult.text);
-      if (hasDevanagari &&
+      // FIX: Match the same ratio-based detection used in extractTextWithLanguage.
+      final devCharCount =
+          RegExp(r'[\u0900-\u097F]').allMatches(devResult.text).length;
+      final devTotalNonSpace =
+          devResult.text.replaceAll(RegExp(r'\s'), '').length;
+      final double devRatio =
+          devTotalNonSpace > 0 ? devCharCount / devTotalNonSpace : 0.0;
+
+      if (devCharCount >= 3 &&
+          devRatio >= 0.3 &&
           devResult.blocks.length >= latinResult.blocks.length) {
         return devResult.blocks;
       }

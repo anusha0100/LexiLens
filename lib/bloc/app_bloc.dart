@@ -16,7 +16,12 @@ class AppBloc extends Bloc<AppEvent, AppState> {
 
   AppBloc() : super(const AppState()) {
     _initializeTTS();
+    // FIX: Load profile, settings AND documents on startup so the home screen
+    // always shows synced data the moment the user opens the app, instead of
+    // requiring a manual refresh.
     add(LoadUserProfile());
+    add(LoadUserSettings());
+    add(LoadDocuments());
 
     // Navigation
     on<NavigateToHome>    ((e, emit) => emit(state.copyWith(currentTab: AppTab.home)));

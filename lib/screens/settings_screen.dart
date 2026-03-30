@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
+import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
+import 'package:lexilens/screens/documents_screen.dart';
+import 'package:lexilens/screens/filter_screen.dart';
 import 'package:lexilens/screens/help_screen.dart';
 import 'package:lexilens/screens/preferences_screen.dart';
 import 'package:lexilens/screens/privacy_policy_screen.dart';
+import 'package:lexilens/screens/scanner_screen.dart';
 import 'package:lexilens/screens/terms_of_service_screen.dart';
 import 'package:lexilens/screens/profile_screen.dart';
 import 'package:lexilens/screens/auth_landing_screen.dart';
@@ -19,8 +23,16 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final authService = AuthService();
 
+    // FIX: Derive colours from the active theme so dark mode is respected
+    // throughout the entire screen instead of painting everything white.
+    final theme       = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark      = theme.brightness == Brightness.dark;
+    final tileBg      = isDark ? const Color(0xFF2D2545) : Colors.white;
+    final tileBorder  = isDark ? const Color(0xFF3D3060) : Colors.grey.shade200;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: BlocBuilder<AppBloc, AppState>(
         builder: (context, state) {
           final userEmail = authService.getUserEmail() ?? 'user@example.com';
@@ -33,116 +45,74 @@ class SettingsScreen extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFFB789DA),
-                      Color(0xFFC89EE5),
-                    ],
+                    colors: [Color(0xFFB789DA), Color(0xFFC89EE5)],
                   ),
                 ),
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-                    child: Column(
+                    child: Row(
                       children: [
-                        Row(
+                        Stack(
                           children: [
-                            Stack(
-                              children: [
-                                Container(
-                                  width: 80,
-                                  height: 80,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 3,
-                                    ),
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 37,
-                                    backgroundColor: Colors.white,
-                                    child: Text(
-                                      state.userName.isNotEmpty
-                                          ? state.userName[0].toUpperCase()
-                                          : 'U',
-                                      style: const TextStyle(
-                                        color: Color(0xFFB789DA),
-                                        fontSize: 32,
-                                        fontWeight: FontWeight.bold,
-                                        fontFamily: 'OpenDyslexic',
-                                      ),
-                                    ),
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 3),
+                              ),
+                              child: CircleAvatar(
+                                radius: 37,
+                                backgroundColor: Colors.white,
+                                child: Text(
+                                  state.userName.isNotEmpty
+                                      ? state.userName[0].toUpperCase()
+                                      : 'U',
+                                  style: const TextStyle(
+                                    color: Color(0xFFB789DA),
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'OpenDyslexic',
                                   ),
                                 ),
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => const ProfileScreen(),
-                                        ),
-                                      );
-                                    },
-                                    child: Container(
-                                      width: 26,
-                                      height: 26,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: const Color(0xFFB789DA),
-                                          width: 2,
-                                        ),
-                                      ),
-                                      child: const Icon(
-                                        Icons.edit,
-                                        size: 14,
-                                        color: Color(0xFFB789DA),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'My Profile',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.white70,
-                                      fontFamily: 'OpenDyslexic',
-                                    ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: () => Navigator.push(context,
+                                    MaterialPageRoute(builder: (_) => const ProfileScreen())),
+                                child: Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0xFFB789DA), width: 2),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    state.userName,
-                                    style: const TextStyle(
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                      fontFamily: 'OpenDyslexic',
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    userEmail,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.white70,
-                                      fontFamily: 'OpenDyslexic',
-                                    ),
-                                  ),
-                                ],
+                                  child: const Icon(Icons.edit, size: 14, color: Color(0xFFB789DA)),
+                                ),
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('My Profile',
+                                  style: TextStyle(fontSize: 14, color: Colors.white70, fontFamily: 'OpenDyslexic')),
+                              const SizedBox(height: 4),
+                              Text(state.userName,
+                                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white, fontFamily: 'OpenDyslexic')),
+                              const SizedBox(height: 2),
+                              Text(userEmail,
+                                  style: const TextStyle(fontSize: 13, color: Colors.white70, fontFamily: 'OpenDyslexic')),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -156,120 +126,72 @@ class SettingsScreen extends StatelessWidget {
                   width: double.infinity,
                   height: 48,
                   child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
-                        ),
-                      );
-                    },
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const ProfileScreen())),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFB789DA),
-                      side: const BorderSide(
-                        color: Color(0xFFB789DA),
-                        width: 2,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      side: const BorderSide(color: Color(0xFFB789DA), width: 2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text(
-                      'Edit Profile',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        fontFamily: 'OpenDyslexic',
-                      ),
-                    ),
+                    child: const Text('Edit Profile',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, fontFamily: 'OpenDyslexic')),
                   ),
                 ),
               ),
               const SizedBox(height: 20),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   children: [
                     _buildMenuItem(
                       context: context,
                       icon: Icons.settings,
                       title: 'Preferences',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PreferencesScreen(),
-                          ),
-                        );
-                      },
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => BlocProvider.value(
+                              value: context.read<AppBloc>(),
+                              child: const PreferencesScreen()))),
                     ),
                     _buildMenuItem(
                       context: context,
                       icon: Icons.help_outline,
                       title: 'Help',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const HelpScreen(),
-                          ),
-                        );
-                      },
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const HelpScreen())),
                     ),
                     _buildMenuItem(
                       context: context,
                       icon: Icons.bug_report,
                       title: 'Document Debug',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const DocumentDebugScreen(),
-                          ),
-                        );
-                      },
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const DocumentDebugScreen())),
                     ),
                     _buildMenuItem(
                       context: context,
                       icon: Icons.bug_report,
                       title: 'Backend Testing',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const BackendTestScreen(),
-                          ),
-                        );
-                      },
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const BackendTestScreen())),
                     ),
                     _buildMenuItem(
                       context: context,
                       icon: Icons.description_outlined,
                       title: 'Terms of Service',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const TermsOfServiceScreen(),
-                          ),
-                        );
-                      },
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const TermsOfServiceScreen())),
                     ),
                     _buildMenuItem(
                       context: context,
                       icon: Icons.privacy_tip_outlined,
                       title: 'Privacy Policy',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const PrivacyPolicyScreen(),
-                          ),
-                        );
-                      },
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
                     ),
                     const SizedBox(height: 8),
                     _buildMenuItem(
@@ -277,9 +199,8 @@ class SettingsScreen extends StatelessWidget {
                       icon: Icons.logout,
                       title: 'Logout',
                       isLogout: true,
-                      onTap: () {
-                        _showLogoutDialog(context);
-                      },
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
+                      onTap: () => _showLogoutDialog(context),
                     ),
                     const SizedBox(height: 8),
                     _buildMenuItem(
@@ -287,15 +208,18 @@ class SettingsScreen extends StatelessWidget {
                       icon: Icons.delete_forever,
                       title: 'Delete Account',
                       isLogout: true,
+                      tileBg: tileBg, tileBorder: tileBorder, colorScheme: colorScheme,
                       onTap: () => _showDeleteAccountDialog(context),
                     ),
                   ],
                 ),
               ),
-              // Bottom Navigation Bar
+
+              // FIX: Bottom nav bar — dark-mode aware background colour AND all
+              // tabs now actually navigate instead of being empty no-ops.
               Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: tileBg,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withOpacity(0.1),
@@ -314,30 +238,69 @@ class SettingsScreen extends StatelessWidget {
                           icon: Icons.home,
                           label: 'Home',
                           isSelected: false,
+                          colorScheme: colorScheme,
+                          // Go back to HomeScreen
                           onTap: () => Navigator.pop(context),
                         ),
                         _buildNavItem(
                           icon: Icons.camera_alt,
                           label: 'Scan',
                           isSelected: false,
-                          onTap: () {},
+                          colorScheme: colorScheme,
+                          onTap: () {
+                            context.read<AppBloc>().add(NavigateToScan());
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlocProvider.value(
+                                  value: context.read<AppBloc>(),
+                                  child: const ScannerScreen(),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildNavItem(
                           icon: Icons.description,
                           label: 'Docs',
                           isSelected: false,
-                          onTap: () {},
+                          colorScheme: colorScheme,
+                          onTap: () {
+                            context.read<AppBloc>().add(NavigateToDocs());
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlocProvider.value(
+                                  value: context.read<AppBloc>(),
+                                  child: const DocumentsScreen(),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildNavItem(
                           icon: Icons.filter_alt,
                           label: 'Filter',
                           isSelected: false,
-                          onTap: () {},
+                          colorScheme: colorScheme,
+                          onTap: () {
+                            context.read<AppBloc>().add(NavigateToFilter());
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => BlocProvider.value(
+                                  value: context.read<AppBloc>(),
+                                  child: const FilterScreen(),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         _buildNavItem(
                           icon: Icons.settings,
                           label: 'Setting',
                           isSelected: true,
+                          colorScheme: colorScheme,
                           onTap: () {},
                         ),
                       ],
@@ -357,23 +320,21 @@ class SettingsScreen extends StatelessWidget {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    required Color tileBg,
+    required Color tileBorder,
+    required ColorScheme colorScheme,
     bool isLogout = false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // FIX: was hardcoded Colors.white — now theme-derived.
+        color: tileBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.grey[200]!,
-          width: 1,
-        ),
+        border: Border.all(color: tileBorder, width: 1),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 4,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: Container(
           width: 40,
           height: 40,
@@ -394,13 +355,14 @@ class SettingsScreen extends StatelessWidget {
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            color: isLogout ? Colors.red : Colors.black87,
+            // FIX: was Colors.black87 — now theme-derived so it's readable in dark mode.
+            color: isLogout ? Colors.red : colorScheme.onSurface,
             fontFamily: 'OpenDyslexic',
           ),
         ),
         trailing: Icon(
           Icons.chevron_right,
-          color: isLogout ? Colors.red : Colors.grey[400],
+          color: isLogout ? Colors.red : colorScheme.onSurface.withOpacity(0.4),
           size: 24,
         ),
         onTap: onTap,
@@ -412,6 +374,7 @@ class SettingsScreen extends StatelessWidget {
     required IconData icon,
     required String label,
     required bool isSelected,
+    required ColorScheme colorScheme,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -421,7 +384,10 @@ class SettingsScreen extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: isSelected ? const Color(0xFFB789DA) : Colors.grey[400],
+            // FIX: was hardcoded Colors.grey[400] — now theme-derived.
+            color: isSelected
+                ? const Color(0xFFB789DA)
+                : colorScheme.onSurface.withOpacity(0.45),
             size: 26,
           ),
           const SizedBox(height: 4),
@@ -429,7 +395,9 @@ class SettingsScreen extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: isSelected ? const Color(0xFFB789DA) : Colors.grey[400],
+              color: isSelected
+                  ? const Color(0xFFB789DA)
+                  : colorScheme.onSurface.withOpacity(0.45),
               fontFamily: 'OpenDyslexic',
             ),
           ),
@@ -445,32 +413,16 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: const Text(
-            'Logout',
-            style: TextStyle(
-              fontFamily: 'OpenDyslexic',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: const Text(
-            'Are you sure you want to logout?',
-            style: TextStyle(
-              fontFamily: 'OpenDyslexic',
-            ),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Logout',
+              style: TextStyle(fontFamily: 'OpenDyslexic', fontWeight: FontWeight.bold)),
+          content: const Text('Are you sure you want to logout?',
+              style: TextStyle(fontFamily: 'OpenDyslexic')),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontFamily: 'OpenDyslexic',
-                ),
-              ),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Colors.grey, fontFamily: 'OpenDyslexic')),
             ),
             TextButton(
               onPressed: () async {
@@ -479,42 +431,28 @@ class SettingsScreen extends StatelessWidget {
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (context) => const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFB789DA),
-                    ),
-                  ),
+                  builder: (context) =>
+                      const Center(child: CircularProgressIndicator(color: Color(0xFFB789DA))),
                 );
 
                 await authService.logout();
 
                 if (context.mounted) {
                   Navigator.pop(context);
-
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Logged out successfully'),
-                      backgroundColor: Color(0xFFB789DA),
-                    ),
+                        content: Text('Logged out successfully'),
+                        backgroundColor: Color(0xFFB789DA)),
                   );
-
                   Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const AuthLandingScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const AuthLandingScreen()),
                     (route) => false,
                   );
                 }
               },
-              child: const Text(
-                'Logout',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontFamily: 'OpenDyslexic',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: const Text('Logout',
+                  style: TextStyle(color: Colors.red, fontFamily: 'OpenDyslexic', fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -523,58 +461,36 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showDeleteAccountDialog(BuildContext context) {
-    final authService = AuthService();
-
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
             children: [
               Icon(Icons.warning, color: Colors.red),
               SizedBox(width: 8),
-              Text(
-                'Delete Account',
-                style: TextStyle(
-                  fontFamily: 'OpenDyslexic',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              Text('Delete Account',
+                  style: TextStyle(fontFamily: 'OpenDyslexic', fontWeight: FontWeight.bold)),
             ],
           ),
           content: const Text(
             'This will permanently delete your account and all associated data including:\n\n• All documents\n• Settings and preferences\n• Reading history\n• User sessions\n\nThis action cannot be undone.',
-            style: TextStyle(
-              fontFamily: 'OpenDyslexic',
-            ),
+            style: TextStyle(fontFamily: 'OpenDyslexic'),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontFamily: 'OpenDyslexic',
-                ),
-              ),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Colors.grey, fontFamily: 'OpenDyslexic')),
             ),
             TextButton(
               onPressed: () async {
                 Navigator.pop(dialogContext);
                 _handleAccountDeletion(context);
               },
-              child: const Text(
-                'Delete Permanently',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontFamily: 'OpenDyslexic',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: const Text('Delete Permanently',
+                  style: TextStyle(color: Colors.red, fontFamily: 'OpenDyslexic', fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -585,7 +501,6 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _handleAccountDeletion(BuildContext context) async {
     final authService = AuthService();
 
-    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -593,42 +508,30 @@ class SettingsScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(
-              color: Color(0xFFB789DA),
-            ),
+            CircularProgressIndicator(color: Color(0xFFB789DA)),
             SizedBox(height: 16),
-            Text(
-              'Deleting account...',
-              style: TextStyle(
-                color: Colors.white,
-                fontFamily: 'OpenDyslexic',
-              ),
-            ),
+            Text('Deleting account...',
+                style: TextStyle(color: Colors.white, fontFamily: 'OpenDyslexic')),
           ],
         ),
       ),
     );
 
-    
-    var result = await authService.deleteAccount();
+    final result = await authService.deleteAccount();
 
     if (context.mounted) {
-      Navigator.pop(context); 
+      Navigator.pop(context);
 
       if (result['success']) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Account deleted successfully'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
-          ),
+              content: Text('Account deleted successfully'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3)),
         );
-
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(
-            builder: (context) => const AuthLandingScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const AuthLandingScreen()),
           (route) => false,
         );
       } else if (result['requiresReauth'] == true) {
@@ -636,10 +539,9 @@ class SettingsScreen extends StatelessWidget {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] ?? 'Failed to delete account'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
-          ),
+              content: Text(result['message'] ?? 'Failed to delete account'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4)),
         );
       }
     }
@@ -657,26 +559,15 @@ class SettingsScreen extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Text(
-                'Confirm Identity',
-                style: TextStyle(
-                  fontFamily: 'OpenDyslexic',
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Confirm Identity',
+                  style: TextStyle(fontFamily: 'OpenDyslexic', fontWeight: FontWeight.bold)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'For security, please enter your password to continue:',
-                    style: TextStyle(
-                      fontFamily: 'OpenDyslexic',
-                    ),
-                  ),
+                  const Text('For security, please enter your password to continue:',
+                      style: TextStyle(fontFamily: 'OpenDyslexic')),
                   const SizedBox(height: 16),
                   TextField(
                     controller: passwordController,
@@ -684,18 +575,10 @@ class SettingsScreen extends StatelessWidget {
                     decoration: InputDecoration(
                       labelText: 'Password',
                       labelStyle: const TextStyle(fontFamily: 'OpenDyslexic'),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       suffixIcon: IconButton(
-                        icon: Icon(
-                          obscurePassword ? Icons.visibility : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            obscurePassword = !obscurePassword;
-                          });
-                        },
+                        icon: Icon(obscurePassword ? Icons.visibility : Icons.visibility_off),
+                        onPressed: () => setState(() => obscurePassword = !obscurePassword),
                       ),
                     ),
                     style: const TextStyle(fontFamily: 'OpenDyslexic'),
@@ -708,32 +591,23 @@ class SettingsScreen extends StatelessWidget {
                     passwordController.dispose();
                     Navigator.pop(dialogContext);
                   },
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Colors.grey,
-                      fontFamily: 'OpenDyslexic',
-                    ),
-                  ),
+                  child: const Text('Cancel',
+                      style: TextStyle(color: Colors.grey, fontFamily: 'OpenDyslexic')),
                 ),
                 TextButton(
                   onPressed: () async {
                     final password = passwordController.text.trim();
-                    
                     if (password.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('Please enter your password'),
-                          backgroundColor: Colors.orange,
-                        ),
+                            content: Text('Please enter your password'),
+                            backgroundColor: Colors.orange),
                       );
                       return;
                     }
-
                     Navigator.pop(dialogContext);
                     passwordController.dispose();
 
-                    
                     showDialog(
                       context: context,
                       barrierDismissible: false,
@@ -741,63 +615,43 @@ class SettingsScreen extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircularProgressIndicator(
-                              color: Color(0xFFB789DA),
-                            ),
+                            CircularProgressIndicator(color: Color(0xFFB789DA)),
                             SizedBox(height: 16),
-                            Text(
-                              'Deleting account...',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontFamily: 'OpenDyslexic',
-                              ),
-                            ),
+                            Text('Deleting account...',
+                                style: TextStyle(color: Colors.white, fontFamily: 'OpenDyslexic')),
                           ],
                         ),
                       ),
                     );
 
-                    
                     final result = await authService.deleteAccount(password: password);
 
                     if (context.mounted) {
-                      Navigator.pop(context); 
-
+                      Navigator.pop(context);
                       if (result['success']) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Account deleted successfully'),
-                            backgroundColor: Colors.green,
-                            duration: Duration(seconds: 3),
-                          ),
+                              content: Text('Account deleted successfully'),
+                              backgroundColor: Colors.green,
+                              duration: Duration(seconds: 3)),
                         );
-
                         Navigator.pushAndRemoveUntil(
                           context,
-                          MaterialPageRoute(
-                            builder: (context) => const AuthLandingScreen(),
-                          ),
+                          MaterialPageRoute(builder: (context) => const AuthLandingScreen()),
                           (route) => false,
                         );
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(result['message'] ?? 'Failed to delete account'),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 4),
-                          ),
+                              content: Text(result['message'] ?? 'Failed to delete account'),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 4)),
                         );
                       }
                     }
                   },
-                  child: const Text(
-                    'Confirm & Delete',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontFamily: 'OpenDyslexic',
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: const Text('Confirm & Delete',
+                      style: TextStyle(color: Colors.red, fontFamily: 'OpenDyslexic', fontWeight: FontWeight.bold)),
                 ),
               ],
             );
