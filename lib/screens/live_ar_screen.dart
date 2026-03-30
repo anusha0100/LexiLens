@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -230,29 +231,34 @@ class _LiveArScreenState extends State<LiveArScreen>
       });
     }
   }
-
-  InputImage? _buildInputImage(CameraImage image) {
+InputImage? _buildInputImage(CameraImage image) {
     final camera = _cameras?[0];
     if (camera == null) return null;
 
-    final rotation =
-        InputImageRotationValue.fromRawValue(camera.sensorOrientation);
+    final rotation = InputImageRotationValue.fromRawValue(camera.sensorOrientation);
     if (rotation == null) return null;
 
     final format = InputImageFormatValue.fromRawValue(image.format.raw);
     if (format == null) return null;
 
-    final plane = image.planes.first;
+    // FIX: Concatenate all planes so NV21 on Android receives both Y + UV data
+    final WriteBuffer allBytes = WriteBuffer();
+    for (final Plane plane in image.planes) {
+      allBytes.putUint8List(plane.bytes);
+    }
+    final bytes = allBytes.done().buffer.asUint8List();
+
     return InputImage.fromBytes(
-      bytes: plane.bytes,
+      bytes: bytes,
       metadata: InputImageMetadata(
         size:        Size(image.width.toDouble(), image.height.toDouble()),
         rotation:    rotation,
         format:      format,
-        bytesPerRow: plane.bytesPerRow,
+        bytesPerRow: image.planes.first.bytesPerRow,
       ),
     );
   }
+
 
   // ── Flash ──────────────────────────────────────────────────────────────────
 
