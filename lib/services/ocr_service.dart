@@ -74,6 +74,8 @@ class OCRService {
     Uint8List? imageBytes,
   }) async {
     String? imageHash;
+    Map<String, dynamic>? cachedMetadata;
+    
     if (imageBytes != null) {
       imageHash = _hashImageBytes(imageBytes);
 
@@ -87,17 +89,12 @@ class OCRService {
       if (remoteHit != null) {
         print('🟡 OCR remote cache hit ($imageHash)');
         _hitCount++;
-        final result = {
-          'text':             remoteHit['recognizedText'] ?? '',
-          'blocks':           <TextBlock>[],
-          'language':         remoteHit['languageDetected'] ?? 'Unknown',
-          'script':           'Unknown',
-          'canUseOpenDyslexic':
-              _canUseOpenDyslexicForLanguage(remoteHit['languageDetected'] ?? ''),
-          'fromCache': true,
+        // Store cache metadata but don't return yet — we still need blocks
+        cachedMetadata = {
+          'language': remoteHit['languageDetected'] ?? 'Unknown',
+          'confidenceScore': remoteHit['confidenceScore'],
+          'processingTimeMs': remoteHit['processingTimeMs'],
         };
-        _memCachePut(imageHash, result);
-        return result;
       }
     }
 
@@ -158,14 +155,20 @@ class OCRService {
       stopwatch.stop();
       final processingTimeMs = stopwatch.elapsedMilliseconds;
 
-      final detectedLanguage =
-          _detectLanguageFromText(recognizedText.text, detectedScript);
+      // Use cached language/confidence if available, otherwise detect fresh
+      final detectedLanguage = cachedMetadata != null
+          ? cachedMetadata['language'] as String
+          : _detectLanguageFromText(recognizedText.text, detectedScript);
 
       print('Language: $detectedLanguage | Script: $detectedScript | '
           '${processingTimeMs}ms');
 
       double? avgConfidence;
-      if (recognizedText.blocks.isNotEmpty) {
+      if (cachedMetadata != null && cachedMetadata['confidenceScore'] != null) {
+        // Use cached confidence score
+        avgConfidence = cachedMetadata['confidenceScore'] as double?;
+      } else if (recognizedText.blocks.isNotEmpty) {
+        // Compute fresh confidence score from blocks
         final scores = recognizedText.blocks
             .expand((b) => b.lines)
             .expand((l) => l.elements)
@@ -183,9 +186,11 @@ class OCRService {
         'language':          detectedLanguage,
         'script':            detectedScript,
         'canUseOpenDyslexic': _canUseOpenDyslexic(detectedLanguage),
-        'processingTimeMs':  processingTimeMs,
+        'processingTimeMs':  cachedMetadata != null 
+            ? cachedMetadata['processingTimeMs']
+            : processingTimeMs,
         'confidenceScore':   avgConfidence,
-        'fromCache':         false,
+        'fromCache':         cachedMetadata != null,
       };
 
       if (imageHash != null) {

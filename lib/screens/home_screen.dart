@@ -557,11 +557,23 @@ class _BottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<AppBloc, AppState>(
       builder: (context, state) {
+        final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+        
         return BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: const Color(0xFFB789DA),
+          // FIX: Use brighter purple in dark mode for better visibility.
+          // In light mode, use the standard accent purple.
+          selectedItemColor: isDarkMode 
+              ? const Color(0xFFD4ACEA)  // Lighter purple for dark mode
+              : const Color(0xFFB789DA), // Standard purple for light mode
           unselectedItemColor:
               Theme.of(context).colorScheme.onSurface.withOpacity(0.5),
+          // FIX: Explicit background color — matches app bar in dark mode,
+          // white in light mode. This ensures selected tab is visible.
+          backgroundColor: isDarkMode
+              ? const Color(0xFF2D2545)  // Dark app bar color
+              : Colors.white,
+          elevation: 8,
           // FIX: Was hardcoded 0 — now driven by the bloc state so the
           // correct tab is highlighted after navigation.
           currentIndex: _tabToIndex(state.currentTab),

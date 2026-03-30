@@ -79,6 +79,34 @@ class _LiveArScreenState extends State<LiveArScreen>
   Size?            _pendingImageSize;
   bool             _pendingScheduled = false;
 
+  /// Helper: Rotate a coordinate rectangle from image space to screen space
+  Rect _rotateRect(Rect box) {
+    if (_sensorRotation == 0 || _sensorRotation == 180) {
+      return box;
+    }
+
+    final double imgW = _imageSize.width;
+    final double imgH = _imageSize.height;
+
+    if (_sensorRotation == 90) {
+      // 90° clockwise: (x, y) → (imgH - y, x)
+      final newLeft = imgH - box.bottom;
+      final newTop = box.left;
+      final newRight = imgH - box.top;
+      final newBottom = box.right;
+      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
+    } else if (_sensorRotation == 270) {
+      // 270° clockwise: (x, y) → (y, imgW - x)
+      final newLeft = box.top;
+      final newTop = imgW - box.right;
+      final newRight = box.bottom;
+      final newBottom = imgW - box.left;
+      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
+    }
+
+    return box;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -253,9 +281,11 @@ class _LiveArScreenState extends State<LiveArScreen>
       for (final line in block.lines) {
         for (final element in line.elements) {
           final box = element.boundingBox;
+          // Apply rotation transformation to bounding box
+          final rotatedBox = _rotateRect(box);
           final scaled = Rect.fromLTRB(
-            box.left  * scaleX, box.top    * scaleY,
-            box.right * scaleX, box.bottom * scaleY,
+            rotatedBox.left  * scaleX, rotatedBox.top    * scaleY,
+            rotatedBox.right * scaleX, rotatedBox.bottom * scaleY,
           );
           if (scaled.contains(touchPos)) {
             final word = element.text.replaceAll(RegExp(r'[^\w]'), '');
@@ -537,6 +567,34 @@ class _LiveOverlayPainter extends CustomPainter {
     required this.sensorRotation,
   });
 
+  /// Transforms a coordinate from image space to rotated screen space
+  Rect _rotateRect(Rect box) {
+    if (sensorRotation == 0 || sensorRotation == 180) {
+      return box;
+    }
+
+    final double imgW = imageSize.width;
+    final double imgH = imageSize.height;
+
+    if (sensorRotation == 90) {
+      // 90° clockwise: (x, y) → (imgH - y, x)
+      final newLeft = imgH - box.bottom;
+      final newTop = box.left;
+      final newRight = imgH - box.top;
+      final newBottom = box.right;
+      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
+    } else if (sensorRotation == 270) {
+      // 270° clockwise: (x, y) → (y, imgW - x)
+      final newLeft = box.top;
+      final newTop = imgW - box.right;
+      final newRight = box.bottom;
+      final newBottom = imgW - box.left;
+      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
+    }
+
+    return box;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (imageSize == Size.zero) return;
@@ -554,9 +612,11 @@ class _LiveOverlayPainter extends CustomPainter {
     for (final block in textBlocks) {
       for (final line in block.lines) {
         final box = line.boundingBox;
+        // Apply rotation transformation to bounding box
+        final rotatedBox = _rotateRect(box);
         final rect = Rect.fromLTRB(
-          box.left  * scaleX, box.top    * scaleY,
-          box.right * scaleX, box.bottom * scaleY,
+          rotatedBox.left  * scaleX, rotatedBox.top    * scaleY,
+          rotatedBox.right * scaleX, rotatedBox.bottom * scaleY,
         );
         final lineH = rect.height;
         final vPad  = useOpenDyslexic ? lineH * 0.22 : 3.0;
@@ -571,7 +631,11 @@ class _LiveOverlayPainter extends CustomPainter {
           double x = rect.left + 2;
           for (final element in line.elements) {
             final wBox   = element.boundingBox;
-            final wH     = wBox.height * scaleY;
+            // Apply rotation transformation to get correct dimensions
+            final rotatedWBox = _rotateRect(Rect.fromLTRB(
+              wBox.left, wBox.top, wBox.right, wBox.bottom,
+            ));
+            final wH     = rotatedWBox.height * scaleY;
             final target = fontSize.clamp(8.0, wH.clamp(8.0, fontSize + 4));
 
             final tp = TextPainter(
