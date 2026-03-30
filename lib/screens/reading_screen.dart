@@ -82,6 +82,46 @@ String _classifyPos(String word) {
   return 'noun';
 }
 
+// ── FIX: Syllable validation helper ──────────────────────────────────────────
+// Returns true when the SyllableService result looks suspicious:
+//   • The service returned the word unsplit (single chunk == the whole word)
+//     for a word longer than 4 letters — likely a dictionary miss.
+//   • A naive fallback (vowel-group split) is used instead and the bottom-sheet
+//     shows a subtle "review" badge so the user knows it is auto-generated.
+bool _syllableLooksSuspect(String word, List<String> syllables) {
+  if (word.length <= 4) return false;
+  return syllables.length == 1 && syllables[0].toLowerCase() == word.toLowerCase();
+}
+
+/// Naive vowel-group fallback used when the rule-based service fails to split.
+/// Not perfect, but almost always better than showing the full unsplit word.
+List<String> _naiveSplit(String word) {
+  const vowels = 'aeiouy';
+  final result = <String>[];
+  final buf    = StringBuffer();
+  bool  seenV  = false;
+
+  for (int i = 0; i < word.length; i++) {
+    final ch = word[i].toLowerCase();
+    buf.write(word[i]);
+
+    if (vowels.contains(ch)) {
+      seenV = true;
+    } else if (seenV && i + 1 < word.length) {
+      final next = word[i + 1].toLowerCase();
+      // Split after a consonant that follows a vowel, unless the next char is
+      // also a consonant (keep consonant clusters together).
+      if (vowels.contains(next)) {
+        result.add(buf.toString());
+        buf.clear();
+        seenV = false;
+      }
+    }
+  }
+  if (buf.isNotEmpty) result.add(buf.toString());
+  return result.length > 1 ? result : [word];
+}
+
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key});
 
@@ -223,7 +263,6 @@ class _ReadingScreenState extends State<ReadingScreen>
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: _kOnSurface),
         onPressed: () {
-          // FIX: Stop (not pause) TTS on back so audio always halts immediately.
           context.read<AppBloc>().add(StopTextToSpeech());
           Navigator.pop(context);
         },
@@ -368,8 +407,6 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── FIX: Removed isSoundEnabled guard that was silently blocking TTS.
-  // The Sound toggle only controls its own icon/state; it no longer gates TTS.
   void _handlePlayPause(BuildContext context, AppState state, document) {
     if (state.readingState == ReadingState.playing) {
       context.read<AppBloc>().add(PauseTextToSpeech());
@@ -396,7 +433,6 @@ class _ReadingScreenState extends State<ReadingScreen>
               IconButton(
                 icon: const Icon(Icons.home, color: _kOnSurface),
                 onPressed: () {
-                  // FIX: Stop TTS completely on home navigation.
                   context.read<AppBloc>().add(StopTextToSpeech());
                   Navigator.pop(context);
                 },
@@ -468,6 +504,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                 context.read<AppBloc>().add(StartTextToSpeech(text: clean));
               }
             },
+            // FIX: Long-press triggers the word detail sheet with validated
+            // syllable breakdown (see _showWordDetail).
             onLongPress: clean.isNotEmpty
                 ? () => _showWordDetail(context, clean)
                 : null,
@@ -510,10 +548,24 @@ class _ReadingScreenState extends State<ReadingScreen>
   }
 
   // ── Word detail bottom-sheet ───────────────────────────────────────────────
+  //
+  // FIX: Syllable validation.
+  //  1. Ask SyllableService for the breakdown.
+  //  2. If the result looks suspect (unsplit word > 4 chars) fall back to a
+  //     naive vowel-group split and show a "needs review" badge in the sheet.
+  //  3. The user sees the best available breakdown either way, never a blank.
 
   void _showWordDetail(BuildContext context, String word) {
     if (word.isEmpty) return;
-    final syllables = _syllableService.breakIntoSyllables(word);
+
+    List<String> syllables = _syllableService.breakIntoSyllables(word);
+    bool suspect = false;
+
+    if (_syllableLooksSuspect(word, syllables)) {
+      syllables = _naiveSplit(word);
+      suspect   = true;
+    }
+
     final formatted = _syllableService.formatSyllables(syllables);
     final pos       = _classifyPos(word);
     final posColor  = _kPosColors[pos] ?? _kPosColors['other']!;
@@ -554,6 +606,8 @@ class _ReadingScreenState extends State<ReadingScreen>
                 ),
               ),
               const SizedBox(height: 20),
+
+              // ── Syllable display ──────────────────────────────────────────
               Text(
                 formatted,
                 textAlign: TextAlign.center,
@@ -565,18 +619,50 @@ class _ReadingScreenState extends State<ReadingScreen>
                   letterSpacing: 4,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                '${syllables.length} syllable${syllables.length != 1 ? "s" : ""}',
-                style: TextStyle(
-                  color: _kOnSurface.withOpacity(0.55),
-                  fontSize: 13,
-                  fontFamily: 'OpenDyslexic',
-                ),
+
+              const SizedBox(height: 6),
+
+              // Syllable count + optional "needs review" badge
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '${syllables.length} syllable${syllables.length != 1 ? "s" : ""}',
+                    style: TextStyle(
+                      color: _kOnSurface.withOpacity(0.55),
+                      fontSize: 13,
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+                  if (suspect) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: Colors.orange.withOpacity(0.6)),
+                      ),
+                      child: const Text(
+                        'auto • tap to review',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 10,
+                          fontFamily: 'OpenDyslexic',
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
+
               const SizedBox(height: 20),
               Divider(color: _kAccent.withOpacity(0.25)),
               const SizedBox(height: 16),
+
+              // ── POS badge ─────────────────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -613,7 +699,10 @@ class _ReadingScreenState extends State<ReadingScreen>
                   ),
                 ],
               ),
+
               const SizedBox(height: 24),
+
+              // ── Syllable chips ────────────────────────────────────────────
               Wrap(
                 spacing: 10,
                 runSpacing: 8,
@@ -646,6 +735,7 @@ class _ReadingScreenState extends State<ReadingScreen>
                   );
                 }).toList(),
               ),
+
               const SizedBox(height: 20),
               TextButton(
                 onPressed: () => Navigator.pop(context),

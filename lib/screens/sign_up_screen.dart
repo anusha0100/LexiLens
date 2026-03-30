@@ -3,6 +3,11 @@ import 'package:lexilens/screens/phone_auth_screen.dart';
 import 'package:lexilens/screens/log_in_screen.dart';
 import 'package:lexilens/services/auth_service.dart';
 
+// FIX: Improved Sign Up screen UI/UX.
+// • Matches the redesigned LogInScreen visual language (gradient bg, card form).
+// • Cleaner field labels + consistent spacing.
+// • Terms checkbox row is more compact and accessible.
+
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -11,13 +16,16 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
+  final _formKey            = GlobalKey<FormState>();
+  final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
-  bool _obscurePassword = true;
-  bool _agreedToTerms = false;
-  bool _isLoading = false;
+  final _authService        = AuthService();
+  bool  _obscurePassword    = true;
+  bool  _agreedToTerms      = false;
+  bool  _isLoading          = false;
+
+  static const _kPurple = Color(0xFF7B4FA6);
+  static const _kAccent = Color(0xFFB789DA);
 
   @override
   void dispose() {
@@ -27,286 +35,304 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Future<void> _signUpWithEmail() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
     if (!_agreedToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please agree to terms and conditions'),
-          backgroundColor: Colors.red,
+          content: Text('Please agree to the terms & conditions'),
+          backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      // Store email and password for later
       final result = await _authService.signUpWithEmail(
-        email: _emailController.text.trim(),
+        email:    _emailController.text.trim(),
         password: _passwordController.text,
       );
 
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
 
         if (result['success']) {
-          // Navigate to phone verification
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PhoneAuthScreen(
-                email: _emailController.text.trim(),
-              ),
+              builder: (_) => PhoneAuthScreen(email: _emailController.text.trim()),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
 
+  InputDecoration _fieldDecoration(String hint) => InputDecoration(
+    hintText: hint,
+    hintStyle: TextStyle(color: Colors.grey[400], fontFamily: 'OpenDyslexic', fontSize: 13),
+    filled: true,
+    fillColor: const Color(0xFFF7F3FF),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Color(0xFFE0D4F5), width: 1.2),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: _kAccent, width: 1.8),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Colors.red, width: 1.2),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: const BorderSide(color: Colors.red, width: 1.8),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF5EEFF),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: const Icon(Icons.arrow_back, color: _kPurple),
           onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sign Up',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'OpenDyslexic',
-                  ),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Heading ──────────────────────────────────────────────────
+              const Text(
+                'Create Account',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: 'OpenDyslexic',
+                  color: Color(0xFF2D1B4E),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Enter your detail below & free sign up',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                    fontFamily: 'OpenDyslexic',
-                  ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Fill in your details below to get started',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[500],
+                  fontFamily: 'OpenDyslexic',
                 ),
-                const SizedBox(height: 40),
-                const Text(
-                  'Your Email',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'OpenDyslexic',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  enabled: !_isLoading,
-                  decoration: InputDecoration(
-                    hintText: 'Cooper_Kristin@gmail.com',
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Password',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    fontFamily: 'OpenDyslexic',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  enabled: !_isLoading,
-                  decoration: InputDecoration(
-                    hintText: '••••••••',
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter a password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _signUpWithEmail,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFB789DA),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey[400],
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            'Create account',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'OpenDyslexic',
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _agreedToTerms,
-                      onChanged: _isLoading
-                          ? null
-                          : (value) {
-                              setState(() {
-                                _agreedToTerms = value ?? false;
-                              });
-                            },
-                      activeColor: const Color(0xFFB789DA),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'By creating an account you are agreeing to our terms & conditions.',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[600],
-                          fontFamily: 'OpenDyslexic',
-                        ),
-                      ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ── Form card ────────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _kAccent.withOpacity(0.12),
+                      blurRadius: 20,
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Already have an account? ',
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Email
+                      const Text(
+                        'Email',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'OpenDyslexic',
+                          color: Color(0xFF2D1B4E),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        enabled: !_isLoading,
+                        style: const TextStyle(fontFamily: 'OpenDyslexic', fontSize: 14),
+                        decoration: _fieldDecoration('you@example.com'),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Please enter your email';
+                          if (!v.contains('@'))       return 'Please enter a valid email';
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Password
+                      const Text(
+                        'Password',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'OpenDyslexic',
+                          color: Color(0xFF2D1B4E),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        enabled: !_isLoading,
+                        style: const TextStyle(fontFamily: 'OpenDyslexic', fontSize: 14),
+                        decoration: _fieldDecoration('Min. 6 characters').copyWith(
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: Colors.grey[400],
+                              size: 20,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Please enter a password';
+                          if (v.length < 6)           return 'Password must be at least 6 characters';
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Terms checkbox
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: _agreedToTerms,
+                              onChanged: _isLoading
+                                  ? null
+                                  : (v) => setState(() => _agreedToTerms = v ?? false),
+                              activeColor: _kPurple,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'I agree to the Terms & Conditions',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                                fontFamily: 'OpenDyslexic',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Submit
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _signUpWithEmail,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _kPurple,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.grey[300],
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20, height: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
+                                )
+                              : const Text(
+                                  'Create Account',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'OpenDyslexic',
+                                  ),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Login link ────────────────────────────────────────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Already have an account?  ',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontFamily: 'OpenDyslexic',
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () => Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (_) => const LogInScreen()),
+                            ),
+                    child: Text(
+                      'Log in',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey[600],
+                        color: _isLoading ? Colors.grey : _kPurple,
+                        fontWeight: FontWeight.w700,
                         fontFamily: 'OpenDyslexic',
                       ),
                     ),
-                    GestureDetector(
-                      onTap: _isLoading
-                          ? null
-                          : () {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const LogInScreen(),
-                                ),
-                              );
-                            },
-                      child: Text(
-                        'Log in',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _isLoading
-                              ? Colors.grey
-                              : const Color(0xFFB789DA),
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'OpenDyslexic',
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

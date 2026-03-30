@@ -18,8 +18,12 @@ import 'package:lexilens/services/syllable_service.dart';
 const _kPrimary = Color(0xFF7B4FA6);
 const _kAccent  = Color(0xFFB789DA);
 
-// Minimum ms between OCR calls — increased to 400 ms for stability.
-const _kThrottleMs = 400;
+// Minimum ms between OCR calls — 600 ms gives stable, flicker-free output.
+const _kThrottleMs = 600;
+
+// How many consecutive empty OCR results are required before the overlay is
+// actually cleared.  This prevents a single bad frame from wiping legible text.
+const _kEmptyFramesToClear = 5;
 
 class LiveArScreen extends StatefulWidget {
   const LiveArScreen({super.key});
@@ -35,21 +39,25 @@ class _LiveArScreenState extends State<LiveArScreen>
   bool _cameraReady = false;
 
   // ── OCR ───────────────────────────────────────────────────────────────────
-  // Use a single Latin recogniser for the live stream – running two per frame
-  // was the main source of instability. Devanagari is detected by a post-pass.
+  // Single Latin recogniser for the live stream; Devanagari runs only when
+  // Latin yields nothing, avoiding two heavy ML calls per frame.
   final TextRecognizer _recognizer =
       TextRecognizer(script: TextRecognitionScript.latin);
   final TextRecognizer _devRecognizer =
       TextRecognizer(script: TextRecognitionScript.devanagiri);
 
-  // Guards: _ocrRunning ensures at most one OCR future is in-flight at a time.
+  // Guards: at most one OCR future in-flight at a time.
   bool _ocrRunning = false;
-  int _lastOcrMs   = 0;
+  int  _lastOcrMs  = 0;
 
   // ── Overlay state — written only from the main isolate via setState ────────
   List<TextBlock> _textBlocks = [];
-  Size  _imageSize     = Size.zero;
+  Size  _imageSize      = Size.zero;
   int   _sensorRotation = 0;
+
+  // FIX: Track consecutive empty frames so we don't wipe the overlay on a
+  // single blurry / transitional frame.
+  int _emptyFrameCount = 0;
 
   // ── UI controls ───────────────────────────────────────────────────────────
   bool   _useOpenDyslexic = true;
@@ -61,13 +69,12 @@ class _LiveArScreenState extends State<LiveArScreen>
   final _syllableService = SyllableService();
 
   // ── Syllable popup ────────────────────────────────────────────────────────
-  String?      _tappedWord;
+  String?       _tappedWord;
   List<String>? _tappedSyllables;
   Offset?       _tappedPosition;
 
   // ── Pending overlay update — batched to avoid redundant rebuilds ──────────
-  // Instead of calling setState() inside the camera callback (camera thread),
-  // we store the new blocks and schedule a single post-frame setState.
+  // New blocks are stashed here; a single post-frame callback flushes them.
   List<TextBlock>? _pendingBlocks;
   Size?            _pendingImageSize;
   bool             _pendingScheduled = false;
@@ -111,7 +118,7 @@ class _LiveArScreenState extends State<LiveArScreen>
 
       _controller = CameraController(
         _cameras![0],
-        // Use low resolution for the live stream — faster OCR, less flicker.
+        // Low resolution → faster OCR, less flicker.
         ResolutionPreset.low,
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
@@ -137,7 +144,7 @@ class _LiveArScreenState extends State<LiveArScreen>
     }
   }
 
-  // ── Frame handler — must be extremely cheap; all heavy work is async ───────
+  // ── Frame handler ─────────────────────────────────────────────────────────
 
   void _onCameraImage(CameraImage image) {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -146,7 +153,6 @@ class _LiveArScreenState extends State<LiveArScreen>
     _ocrRunning = true;
     _lastOcrMs  = nowMs;
 
-    // Fire-and-forget; errors are swallowed so the stream never stalls.
     _processFrame(image).catchError((_) {}).whenComplete(() {
       _ocrRunning = false;
     });
@@ -156,25 +162,34 @@ class _LiveArScreenState extends State<LiveArScreen>
     final inputImage = _buildInputImage(image);
     if (inputImage == null) return;
 
-    // Run Latin recogniser first.
     final result = await _recognizer.processImage(inputImage);
-
     List<TextBlock> blocks = result.blocks;
 
-    // Only fall back to Devanagari when Latin yields nothing — avoids
-    // running two heavy ML models per frame simultaneously.
+    // Only fall back to Devanagari when Latin yields nothing.
     if (blocks.isEmpty || result.text.trim().isEmpty) {
       final devResult = await _devRecognizer.processImage(inputImage);
       if (devResult.text.isNotEmpty) blocks = devResult.blocks;
     }
 
-    // Schedule a single setState per batch rather than one per frame.
+    // FIX: Stability — only clear the overlay after _kEmptyFramesToClear
+    // consecutive empty results.  This prevents a single blurry frame from
+    // making the overlay vanish and reappear (flicker).
+    if (blocks.isEmpty) {
+      _emptyFrameCount++;
+      if (_emptyFrameCount < _kEmptyFramesToClear) {
+        // Keep the existing overlay; do not schedule a rebuild.
+        return;
+      }
+      // Enough consecutive empty frames — now it is safe to clear.
+    } else {
+      _emptyFrameCount = 0;
+    }
+
     _pendingBlocks    = blocks;
     _pendingImageSize = Size(image.width.toDouble(), image.height.toDouble());
 
     if (!_pendingScheduled) {
       _pendingScheduled = true;
-      // Post-frame callback runs on the next frame — safe, main-thread only.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() {
@@ -553,7 +568,6 @@ class _LiveOverlayPainter extends CustomPainter {
         );
 
         if (line.elements.isNotEmpty) {
-          // Per-word rendering — x resets to line left on every line.
           double x = rect.left + 2;
           for (final element in line.elements) {
             final wBox   = element.boundingBox;
@@ -582,7 +596,6 @@ class _LiveOverlayPainter extends CustomPainter {
             x += tp.width + (useOpenDyslexic ? 6.0 : 4.0);
           }
         } else {
-          // Fallback: render whole line
           final tp = TextPainter(
             text: TextSpan(
               text: line.text,

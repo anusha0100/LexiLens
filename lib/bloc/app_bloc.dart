@@ -16,9 +16,6 @@ class AppBloc extends Bloc<AppEvent, AppState> {
 
   AppBloc() : super(const AppState()) {
     _initializeTTS();
-    // FIX: Load profile, settings AND documents on startup so the home screen
-    // always shows synced data the moment the user opens the app, instead of
-    // requiring a manual refresh.
     add(LoadUserProfile());
     add(LoadUserSettings());
     add(LoadDocuments());
@@ -66,28 +63,22 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     on<OpenDocument>((event, emit) async {
       await _ttsService.stop();
 
-      // FIX: First check the in-memory list (fast path).
       Document? doc = state.recentDocuments.cast<Document?>().firstWhere(
         (d) => d!.id == event.documentPath,
         orElse: () => null,
       );
 
-      // FIX: Also accept a doc from memory that has content — don't skip it
-      // just because the content is empty according to the local record.
-      // If local content IS empty, fetch from MongoDB.
       if (doc == null || doc.content.isEmpty) {
         try {
           final mongoDoc = await _mongoService.getDocument(event.documentPath);
           if (mongoDoc != null && mongoDoc.content.isNotEmpty) {
             doc = Document(
-              // FIX: preserve the exact ID from MongoDB so future lookups match.
               id:           mongoDoc.id ?? event.documentPath,
               name:         mongoDoc.name,
               previewPath:  'assets/l1.png',
               uploadedDate: mongoDoc.uploadedDate,
               content:      mongoDoc.content,
             );
-            // Update the in-memory list so the doc is available next time.
             final updated = [
               ...state.recentDocuments.where((d) => d.id != doc!.id),
               doc,
@@ -205,9 +196,6 @@ class AppBloc extends Bloc<AppEvent, AppState> {
 
       emit(state.copyWith(readingState: ReadingState.playing, currentWordIndex: 0));
 
-      // FIX: Always interrupt when starting new speech so that tapping a word
-      // while audio is playing immediately cancels the old utterance and starts
-      // the new one, rather than queuing behind it silently.
       await _ttsService.speak(
         text,
         detectedLanguage: event.detectedLanguage,
@@ -363,7 +351,25 @@ class AppBloc extends Bloc<AppEvent, AppState> {
       await _saveUserSetting('background_color', event.colorIndex);
     });
 
-    on<SaveFilterSettings>((event, emit) async {});
+    // FIX: TogglePos — flips one POS entry in the map and persists it
+    // immediately so the toggle survives screen navigation and app restarts.
+    on<TogglePos>((event, emit) async {
+      final updated = Map<String, bool>.from(state.posEnabled);
+      updated[event.label] = !(updated[event.label] ?? false);
+      emit(state.copyWith(posEnabled: updated));
+      // Persist as a flat key so each POS has its own setting slot.
+      await _saveUserSetting('pos_${event.label}', updated[event.label]);
+    });
+
+    // FIX: SaveFilterSettings now writes the full filter state (colours + POS)
+    // to the backend in a single pass.
+    on<SaveFilterSettings>((event, emit) async {
+      await _saveUserSetting('text_color',       state.selectedTextColor);
+      await _saveUserSetting('background_color', state.selectedBackgroundColor);
+      for (final entry in state.posEnabled.entries) {
+        await _saveUserSetting('pos_${entry.key}', entry.value);
+      }
+    });
 
     on<LoadUserSettings>((event, emit) async {
       await _loadUserSettings(emit);
@@ -474,24 +480,32 @@ class AppBloc extends Bloc<AppEvent, AppState> {
     if (userId != null) {
       try {
         final s = await _mongoService.getAllSettings(userId);
+
+        // FIX: Rebuild posEnabled from persisted per-key settings.
+        final posEnabled = <String, bool>{};
+        for (final label in ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'articles']) {
+          posEnabled[label] = (s['pos_$label'] as bool?) ?? false;
+        }
+
         emit(state.copyWith(
-          readingSpeed:           s['reading_speed']?.toDouble()          ?? 0.5,
-          volume:                 s['volume']?.toDouble()                  ?? 1.0,
-          pitch:                  s['pitch']?.toDouble()                   ?? 1.0,
-          selectedTextColor:      s['text_color']?.toInt()                 ?? 0,
-          selectedBackgroundColor:s['background_color']?.toInt()           ?? 0,
-          fontFamily:             s['font_family']?.toString()             ?? 'OpenDyslexic',
-          fontSize:               (s['font_size'] ?? s['pref_default_font_size'])?.toDouble() ?? 18.0,
-          lineSpacing:            s['line_spacing']?.toDouble()            ?? 1.8,
-          letterSpacing:          s['letter_spacing']?.toDouble()          ?? 0.5,
-          useOpenDyslexic:        s['use_opendyslexic']                    ?? true,
-          overlayOpacity:         s['overlay_opacity']?.toDouble()         ?? 0.75,
-          isRulerEnabled:         s['ruler_enabled']                       ?? false,
-          rulerPosition:          s['ruler_position']?.toDouble()          ?? 0.5,
-          zoomLevel:              s['zoom_level']?.toDouble()              ?? 1.0,
-          isDarkMode:             s['pref_dark_mode']                      ?? false,
-          userName:               s['user_name']?.toString() ?? await _authService.getUsername(),
-          selectedVoice:          s['selected_voice']?.toString(),
+          readingSpeed:            s['reading_speed']?.toDouble()          ?? 0.5,
+          volume:                  s['volume']?.toDouble()                  ?? 1.0,
+          pitch:                   s['pitch']?.toDouble()                   ?? 1.0,
+          selectedTextColor:       s['text_color']?.toInt()                 ?? 0,
+          selectedBackgroundColor: s['background_color']?.toInt()           ?? 0,
+          fontFamily:              s['font_family']?.toString()             ?? 'OpenDyslexic',
+          fontSize:                (s['font_size'] ?? s['pref_default_font_size'])?.toDouble() ?? 18.0,
+          lineSpacing:             s['line_spacing']?.toDouble()            ?? 1.8,
+          letterSpacing:           s['letter_spacing']?.toDouble()          ?? 0.5,
+          useOpenDyslexic:         s['use_opendyslexic']                    ?? true,
+          overlayOpacity:          s['overlay_opacity']?.toDouble()         ?? 0.75,
+          isRulerEnabled:          s['ruler_enabled']                       ?? false,
+          rulerPosition:           s['ruler_position']?.toDouble()          ?? 0.5,
+          zoomLevel:               s['zoom_level']?.toDouble()              ?? 1.0,
+          isDarkMode:              s['pref_dark_mode']                      ?? false,
+          userName:                s['user_name']?.toString() ?? await _authService.getUsername(),
+          selectedVoice:           s['selected_voice']?.toString(),
+          posEnabled:              posEnabled,
         ));
       } catch (e) {
         print('Error loading settings: $e');

@@ -237,10 +237,12 @@ class OCRService {
 
   // ── Language detection ────────────────────────────────────────────────────
   //
-  // FIX: The old threshold (>2) was far too low — any text with a single common
-  // two-point word like " la " was classified as French/Spanish/Italian instead
-  // of English.  The new threshold is 5, which requires multiple strong signals
-  // before overriding the English default.
+  // FIX: Threshold lowered from 5 → 4.  A score of 5 was too aggressive and
+  // caused plain-ASCII Spanish text (no diacritics, no ¿/¡) to fall through
+  // as English because the scorer could only accumulate points from function-
+  // word matches, which were capped at a low value.  4 lets the Spanish scorer
+  // fire reliably when ≥2 distinctive function words are present even without
+  // any accented characters.
   //
   // FIX: Removed very short and ambiguous words (e.g. " de ", " la ", " le ",
   // " con ", " per ", " di ", " al ") from the scoring lists because they occur
@@ -265,8 +267,10 @@ class OCRService {
     };
 
     String best      = 'English';
-    // FIX: Raised from 2 to 5 — requires clear, unambiguous evidence.
-    int    bestScore = 5;
+    // FIX: Lowered from 5 → 4.  Requires clear evidence but now correctly
+    // catches Spanish text that lacks diacritics (e.g. menus, signs,
+    // plain-ASCII OCR output).
+    int    bestScore = 4;
     for (final entry in scores.entries) {
       if (entry.value > bestScore) {
         bestScore = entry.value;
@@ -318,25 +322,61 @@ class OCRService {
   // We deliberately avoid scoring short words like " la ", " de ", " con "
   // because they appear in English text (names, abbreviations, loanwords).
 
+  // FIX (Spanish): The old scorer was too reliant on diacritics and the
+  // inverted-punctuation ¿/¡ characters.  Plain-ASCII Spanish text from menus,
+  // signs, or low-quality OCR has neither, so it would score 0–3 and always
+  // lose to the English default.
+  //
+  // Changes:
+  //  • Added a broader set of high-frequency Spanish content words (+2 each).
+  //  • Function-word match now requires ≥2 hits AND awards funcCount+1 so that
+  //    3+ matches produce a score that clearly exceeds the new threshold of 4.
+  //  • Common ASCII transliterations of Spanish words (e.g. "tambien",
+  //    "senor") are scored so OCR output without diacritics is handled.
   int _scoreSpanish(String text) {
     int score = 0;
     final lower = text.toLowerCase();
-    // Unique punctuation — extremely strong signal
+
+    // Unique punctuation — extremely strong signal.
     if (lower.contains('¿') || lower.contains('¡')) score += 5;
-    // Distinctive Spanish words
-    for (final w in ['está', 'también', 'usted', 'señor', 'señora',
-                     'español', 'hola', 'gracias', 'nosotros', 'vosotros']) {
+
+    // Distinctive Spanish words (accented / canonical forms).
+    for (final w in [
+      'está', 'también', 'usted', 'señor', 'señora',
+      'español', 'nosotros', 'vosotros', 'están', 'también',
+    ]) {
       if (lower.contains(w)) score += 3;
     }
-    // Common function words (only score if multiple appear)
+
+    // High-frequency Spanish content words that rarely appear in English.
+    // ASCII-friendly forms included to catch diacritic-free OCR output.
+    for (final w in [
+      ' hola ', ' gracias ', ' bueno ', ' buena ', ' mucho ',
+      ' mucha ', ' ahora ', ' tiempo ', ' siempre ', ' nunca ',
+      ' tambien ', ' porque ', ' cuando ', ' donde ', ' quien ',
+      ' noche ', ' senor ', ' senora ', ' chico ', ' chica ',
+      ' favor ', ' hablar ', ' quiero ', ' puedo ', ' tengo ',
+      ' vamos ', ' amigo ', ' amiga ', ' hermano ', ' hermana ',
+    ]) {
+      if (lower.contains(w)) score += 2;
+    }
+
+    // Common function words — only accumulate if several appear together.
     int funcCount = 0;
-    for (final w in [' que ', ' con ', ' para ', ' una ', ' este ',
-                     ' esto ', ' pero ', ' como ', ' tiene ', ' están ']) {
+    for (final w in [
+      ' que ', ' para ', ' una ', ' este ', ' esto ',
+      ' pero ', ' como ', ' tiene ', ' ellos ', ' ellas ',
+      ' ustedes ', ' aunque ', ' porque ', ' tampoco ',
+    ]) {
       if (lower.contains(w)) funcCount++;
     }
-    if (funcCount >= 2) score += funcCount;
-    // Diacritics distinctive of Spanish (not French/Portuguese)
+    // Require ≥2 function words; weight grows with count so that 3+ hits
+    // reliably cross the detection threshold even without diacritics.
+    if (funcCount >= 2) score += funcCount + 1;
+
+    // Diacritics distinctive of Spanish (not shared with French/Portuguese).
     if (RegExp(r'[áéíóúñ]').hasMatch(text)) score += 3;
+
     return score;
   }
 

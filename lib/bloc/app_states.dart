@@ -21,8 +21,8 @@ class AppState extends Equatable {
   final int selectedBackgroundColor;
   final String userName;
   final List<DocumentTag> availableTags;
-  
-  // New font and display settings
+
+  // Font and display settings
   final String fontFamily;
   final double fontSize;
   final double lineSpacing;
@@ -37,6 +37,11 @@ class AppState extends Equatable {
   final bool isExporting;
   final bool isSharing;
   final bool isDarkMode;
+
+  // FIX: POS filter selections — persisted globally across the app.
+  // Keys are lowercase POS labels: 'noun', 'verb', 'adjective', etc.
+  // Default: all off (matches original behaviour where none were wired up).
+  final Map<String, bool> posEnabled;
 
   const AppState({
     this.currentTab = AppTab.home,
@@ -55,7 +60,6 @@ class AppState extends Equatable {
     this.selectedBackgroundColor = 0,
     this.userName = 'User',
     this.availableTags = const [],
-    // Default font settings
     this.fontFamily = 'OpenDyslexic',
     this.fontSize = 18.0,
     this.lineSpacing = 1.8,
@@ -65,47 +69,31 @@ class AppState extends Equatable {
     this.isRulerEnabled = false,
     this.rulerPosition = 0.5,
     this.zoomLevel = 1.0,
-    // voice settings
     this.availableVoices = const [],
     this.selectedVoice,
-    // export/share settings
     this.isExporting = false,
     this.isSharing = false,
     this.isDarkMode = false,
+    this.posEnabled = const {
+      'noun':        false,
+      'verb':        false,
+      'adjective':   false,
+      'adverb':      false,
+      'pronoun':     false,
+      'articles':    false,
+    },
   });
 
   @override
   List<Object?> get props => [
-    currentTab,
-    recentDocuments,
-    currentDocument,
-    readingState,
-    isSoundEnabled,
-    isBookmarked,
-    isFontEnabled,
-    isHighlighted,
-    readingSpeed,
-    volume,
-    pitch,
-    currentWordIndex,
-    selectedTextColor,
-    selectedBackgroundColor,
-    userName,
-    availableTags,
-    fontFamily,
-    fontSize,
-    lineSpacing,
-    letterSpacing,
-    useOpenDyslexic,
-    overlayOpacity,
-    isRulerEnabled,
-    rulerPosition,
-    zoomLevel,
-    availableVoices,
-    selectedVoice,
-    isExporting,
-    isSharing,
-    isDarkMode,
+    currentTab, recentDocuments, currentDocument, readingState,
+    isSoundEnabled, isBookmarked, isFontEnabled, isHighlighted,
+    readingSpeed, volume, pitch, currentWordIndex,
+    selectedTextColor, selectedBackgroundColor, userName, availableTags,
+    fontFamily, fontSize, lineSpacing, letterSpacing, useOpenDyslexic,
+    overlayOpacity, isRulerEnabled, rulerPosition, zoomLevel,
+    availableVoices, selectedVoice, isExporting, isSharing, isDarkMode,
+    posEnabled,
   ];
 
   AppState copyWith({
@@ -139,38 +127,40 @@ class AppState extends Equatable {
     bool? isExporting,
     bool? isSharing,
     bool? isDarkMode,
+    Map<String, bool>? posEnabled,
   }) {
     return AppState(
-      currentTab: currentTab ?? this.currentTab,
-      recentDocuments: recentDocuments ?? this.recentDocuments,
-      currentDocument: currentDocument ?? this.currentDocument,
-      readingState: readingState ?? this.readingState,
-      isSoundEnabled: isSoundEnabled ?? this.isSoundEnabled,
-      isBookmarked: isBookmarked ?? this.isBookmarked,
-      isFontEnabled: isFontEnabled ?? this.isFontEnabled,
-      isHighlighted: isHighlighted ?? this.isHighlighted,
-      readingSpeed: readingSpeed ?? this.readingSpeed,
-      volume: volume ?? this.volume,
-      pitch: pitch ?? this.pitch,
-      currentWordIndex: currentWordIndex ?? this.currentWordIndex,
-      selectedTextColor: selectedTextColor ?? this.selectedTextColor,
-      selectedBackgroundColor: selectedBackgroundColor ?? this.selectedBackgroundColor,
-      userName: userName ?? this.userName,
-      availableTags: availableTags ?? this.availableTags,
-      fontFamily: fontFamily ?? this.fontFamily,
-      fontSize: fontSize ?? this.fontSize,
-      lineSpacing: lineSpacing ?? this.lineSpacing,
-      letterSpacing: letterSpacing ?? this.letterSpacing,
-      useOpenDyslexic: useOpenDyslexic ?? this.useOpenDyslexic,
-      overlayOpacity: overlayOpacity ?? this.overlayOpacity,
-      isRulerEnabled: isRulerEnabled ?? this.isRulerEnabled,
-      rulerPosition: rulerPosition ?? this.rulerPosition,
-      zoomLevel: zoomLevel ?? this.zoomLevel,
-      availableVoices: availableVoices ?? this.availableVoices,
-      selectedVoice: selectedVoice ?? this.selectedVoice,
-      isExporting: isExporting ?? this.isExporting,
-      isSharing: isSharing ?? this.isSharing,
-      isDarkMode: isDarkMode ?? this.isDarkMode,
+      currentTab:             currentTab             ?? this.currentTab,
+      recentDocuments:        recentDocuments        ?? this.recentDocuments,
+      currentDocument:        currentDocument        ?? this.currentDocument,
+      readingState:           readingState           ?? this.readingState,
+      isSoundEnabled:         isSoundEnabled         ?? this.isSoundEnabled,
+      isBookmarked:           isBookmarked           ?? this.isBookmarked,
+      isFontEnabled:          isFontEnabled          ?? this.isFontEnabled,
+      isHighlighted:          isHighlighted          ?? this.isHighlighted,
+      readingSpeed:           readingSpeed           ?? this.readingSpeed,
+      volume:                 volume                 ?? this.volume,
+      pitch:                  pitch                  ?? this.pitch,
+      currentWordIndex:       currentWordIndex       ?? this.currentWordIndex,
+      selectedTextColor:      selectedTextColor      ?? this.selectedTextColor,
+      selectedBackgroundColor:selectedBackgroundColor?? this.selectedBackgroundColor,
+      userName:               userName               ?? this.userName,
+      availableTags:          availableTags          ?? this.availableTags,
+      fontFamily:             fontFamily             ?? this.fontFamily,
+      fontSize:               fontSize               ?? this.fontSize,
+      lineSpacing:            lineSpacing            ?? this.lineSpacing,
+      letterSpacing:          letterSpacing          ?? this.letterSpacing,
+      useOpenDyslexic:        useOpenDyslexic        ?? this.useOpenDyslexic,
+      overlayOpacity:         overlayOpacity         ?? this.overlayOpacity,
+      isRulerEnabled:         isRulerEnabled         ?? this.isRulerEnabled,
+      rulerPosition:          rulerPosition          ?? this.rulerPosition,
+      zoomLevel:              zoomLevel              ?? this.zoomLevel,
+      availableVoices:        availableVoices        ?? this.availableVoices,
+      selectedVoice:          selectedVoice          ?? this.selectedVoice,
+      isExporting:            isExporting            ?? this.isExporting,
+      isSharing:              isSharing              ?? this.isSharing,
+      isDarkMode:             isDarkMode             ?? this.isDarkMode,
+      posEnabled:             posEnabled             ?? this.posEnabled,
     );
   }
 }
