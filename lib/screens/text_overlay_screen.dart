@@ -851,22 +851,21 @@ class OverlayStyle extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final scaleX = imageDisplaySize.width / imageActualSize.width;
-    final scaleY = imageDisplaySize.height / imageActualSize.height;
-    int globalWordIndex = 0;
+      final containerAspect = imageDisplaySize.width / imageDisplaySize.height;
+      final imageAspect     = imageActualSize.width  / imageActualSize.height;
 
-    final shouldUseOpenDyslexic =
-        useOpenDyslexic && _isLatinLanguage(detectedLanguage);
-    final shouldUseDevanagariFont =
-        !shouldUseOpenDyslexic && detectedScript == 'Devanagari';
-
-    for (final block in textBlocks) {
-      for (final line in block.lines) {
-        final boundingBox = line.boundingBox;
-        final left   = boundingBox.left   * scaleX;
-        final top    = boundingBox.top    * scaleY;
-        final right  = boundingBox.right  * scaleX;
-        final bottom = boundingBox.bottom * scaleY;
+      late Size renderedSize;
+      if (imageAspect > containerAspect) {
+        renderedSize = Size(imageDisplaySize.width, imageDisplaySize.width / imageAspect);
+      } else {
+        renderedSize = Size(imageDisplaySize.height * imageAspect, imageDisplaySize.height);
+  }
+        final offsetX = (imageDisplaySize.width  - renderedSize.width)  / 2;
+        final offsetY = (imageDisplaySize.height - renderedSize.height) / 2;
+    
+        final scaleX = renderedSize.width  / imageActualSize.width;
+        final scaleY = renderedSize.height / imageActualSize.height;
+    
         final scaledRect = Rect.fromLTRB(left, top, right, bottom);
         final lineHeight = scaledRect.height;
         final lineText   = line.text;
