@@ -912,8 +912,8 @@ class OverlayStyle extends CustomPainter {
             final wordBox = element.boundingBox;
             if (wordBox == null) continue;
 
-            final wordLeft   = wordBox.left   * scaleX;
-            final wordTop    = wordBox.top    * scaleY;
+            final wordLeft   = wordBox.left   * scaleX + offsetX;
+            final wordTop    = wordBox.top    * scaleY + offsetY;
             final wordWidth  = wordBox.width  * scaleX;
             final wordHeight = wordBox.height * scaleY;
 
