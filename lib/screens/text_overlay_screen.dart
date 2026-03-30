@@ -487,7 +487,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             key: _imageKey,
             fit: BoxFit.contain,
           ),
-          if (_showOverlay)
+          // FIX: Only show overlay if it's enabled AND we have text blocks to display
+          if (_showOverlay && widget.textBlocks.isNotEmpty && _decodedImage != null && _imageDisplaySize != null)
             Positioned.fill(
               child: GestureDetector(
                 onLongPressStart: (details) {
@@ -514,6 +515,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                     detectedLanguage: _detectedLanguage,
                     detectedScript: _detectedScript,
                   ),
+                  size: Size.infinite,
                 ),
               ),
             ),
@@ -851,6 +853,11 @@ class OverlayStyle extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // FIX: Safety check — if no data, return immediately
+    if (textBlocks.isEmpty || imageActualSize == Size.zero || imageDisplaySize == Size.zero) {
+      return;
+    }
+
     final containerAspect = imageDisplaySize.width / imageDisplaySize.height;
     final imageAspect     = imageActualSize.width  / imageActualSize.height;
 
@@ -872,6 +879,7 @@ class OverlayStyle extends CustomPainter {
     final shouldUseDevanagariFont =
         !shouldUseOpenDyslexic && detectedScript == 'Devanagari';
 
+    // FIX: Paint all text blocks with proper coordinate transformation
     for (final block in textBlocks) {
       for (final line in block.lines) {
         final boundingBox = line.boundingBox;
