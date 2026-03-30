@@ -4,6 +4,7 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -242,11 +243,11 @@ InputImage? _buildInputImage(CameraImage image) {
     if (format == null) return null;
 
     // FIX: Concatenate all planes so NV21 on Android receives both Y + UV data
-    final WriteBuffer allBytes = WriteBuffer();
+    final List<int> allBytes = [];
     for (final Plane plane in image.planes) {
-      allBytes.putUint8List(plane.bytes);
+      allBytes.addAll(plane.bytes);
     }
-    final bytes = allBytes.done().buffer.asUint8List();
+    final bytes = Uint8List.fromList(allBytes);
 
     return InputImage.fromBytes(
       bytes: bytes,

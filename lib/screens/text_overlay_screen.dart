@@ -851,20 +851,29 @@ class OverlayStyle extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-      final containerAspect = imageDisplaySize.width / imageDisplaySize.height;
-      final imageAspect     = imageActualSize.width  / imageActualSize.height;
+    final containerAspect = imageDisplaySize.width / imageDisplaySize.height;
+    final imageAspect     = imageActualSize.width  / imageActualSize.height;
 
-      late Size renderedSize;
-      if (imageAspect > containerAspect) {
-        renderedSize = Size(imageDisplaySize.width, imageDisplaySize.width / imageAspect);
-      } else {
-        renderedSize = Size(imageDisplaySize.height * imageAspect, imageDisplaySize.height);
-  }
-        final offsetX = (imageDisplaySize.width  - renderedSize.width)  / 2;
-        final offsetY = (imageDisplaySize.height - renderedSize.height) / 2;
-    
-        final scaleX = renderedSize.width  / imageActualSize.width;
-        final scaleY = renderedSize.height / imageActualSize.height;
+    late Size renderedSize;
+    if (imageAspect > containerAspect) {
+      renderedSize = Size(imageDisplaySize.width, imageDisplaySize.width / imageAspect);
+    } else {
+      renderedSize = Size(imageDisplaySize.height * imageAspect, imageDisplaySize.height);
+    }
+    final offsetX = (imageDisplaySize.width  - renderedSize.width)  / 2;
+    final offsetY = (imageDisplaySize.height - renderedSize.height) / 2;
+
+    final scaleX = renderedSize.width  / imageActualSize.width;
+    final scaleY = renderedSize.height / imageActualSize.height;
+    int globalWordIndex = 0;
+
+    final shouldUseOpenDyslexic =
+        useOpenDyslexic && _isLatinLanguage(detectedLanguage);
+    final shouldUseDevanagariFont =
+        !shouldUseOpenDyslexic && detectedScript == 'Devanagari';
+
+    for (final block in textBlocks) {
+      for (final line in block.lines) {
         final boundingBox = line.boundingBox;
         final left   = boundingBox.left   * scaleX + offsetX;
         final top    = boundingBox.top    * scaleY + offsetY;
