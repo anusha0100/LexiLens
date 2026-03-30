@@ -336,54 +336,61 @@ class _HomeScreenState extends State<HomeScreen> {
             case 0:
               break;
             case 1:
-              context.read<AppBloc>().add(NavigateToScan());
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BlocProvider.value(
-                    value: context.read<AppBloc>(),
-                    child: const ScannerScreen(),
-                  ),
-                ),
-              );
-              break;
-            case 2:
-              context.read<AppBloc>().add(NavigateToDocs());
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BlocProvider.value(
-                    value: context.read<AppBloc>(),
-                    child: const DocumentsScreen(),
-                  ),
-                ),
-              );
-              break;
-            case 3:
-              context.read<AppBloc>().add(NavigateToFilter());
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BlocProvider.value(
-                    value: context.read<AppBloc>(),
-                    child: const FilterScreen(),
-                  ),
-                ),
-              );
-              break;
-            case 4:
-              context.read<AppBloc>().add(NavigateToSettings());
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BlocProvider.value(
-                    value: context.read<AppBloc>(),
-                    child: const SettingsScreen(),
-                  ),
-                ),
-              );
-              break;
-          }
+  context.read<AppBloc>().add(NavigateToScan());
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: context.read<AppBloc>(),
+        child: const ScannerScreen(),
+      ),
+    ),
+  ).then((_) {
+    if (context.mounted) context.read<AppBloc>().add(NavigateToHome());
+  });
+  break;
+case 2:
+  context.read<AppBloc>().add(NavigateToDocs());
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: context.read<AppBloc>(),
+        child: const DocumentsScreen(),
+      ),
+    ),
+  ).then((_) {
+    if (context.mounted) context.read<AppBloc>().add(NavigateToHome());
+  });
+  break;
+case 3:
+  context.read<AppBloc>().add(NavigateToFilter());
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: context.read<AppBloc>(),
+        child: const FilterScreen(),
+      ),
+    ),
+  ).then((_) {
+    if (context.mounted) context.read<AppBloc>().add(NavigateToHome());
+  });
+  break;
+case 4:
+  context.read<AppBloc>().add(NavigateToSettings());
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlocProvider.value(
+        value: context.read<AppBloc>(),
+        child: const SettingsScreen(),
+      ),
+    ),
+  ).then((_) {
+    if (context.mounted) context.read<AppBloc>().add(NavigateToHome());
+  });
+  break;
         },
       ),
     );
