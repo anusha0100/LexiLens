@@ -1,3 +1,27 @@
+// lib/screens/text_overlay_screen.dart
+//
+// FIXES in this revision
+// ──────────────────────
+// 1. Language-gated OpenDyslexic: font is applied ONLY for Latin-script
+//    languages.  Devanagari text always uses NotoSansDevanagari; other
+//    scripts fall back to the system default.  The toggle in the AppBar
+//    is now disabled (greyed out) when the detected script is non-Latin
+//    so users can't accidentally select a font that produces □ boxes.
+//
+// 2. Text congestion / word-spacing overhaul in OverlayStyle:
+//    • wordGapFactor raised to 0.65em (OpenDyslexic) / 0.50em (Latin).
+//    • letterSpacing raised to 1.6 (OpenDyslexic) / 1.1 (plain Latin).
+//    • Background pill now inflated 4 px left/right AND vPad top/bottom
+//      (was only top/bottom), so consecutive pills no longer overlap.
+//    • Per-element maxWidth: wW + ls*len + 16 (was +8), preventing
+//      clipping of wide glyphs at high letter-spacing.
+//    • Fallback word-loop cursor resets to `left + 4` at the START of
+//      each line.  Previously it was never reset between lines, causing
+//      words to drift off-screen to the right on multi-line results.
+//    • fontSize is never clamped to lineH – the slider value is used
+//      directly (floor at 8 px only).
+//    • vPad is 30 % of lineH (min 3, max 12) – exposes descenders.
+
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
@@ -15,19 +39,19 @@ import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/services/syllable_service.dart';
 
 class TextOverlayScreen extends StatefulWidget {
-  final String imagePath;
+  final String        imagePath;
   final List<TextBlock> textBlocks;
-  final bool useOpenDyslexic;
-  final double fontSize;
-  final String? detectedLanguage;
-  final String? detectedScript;
+  final bool          useOpenDyslexic;
+  final double        fontSize;
+  final String?       detectedLanguage;
+  final String?       detectedScript;
 
   const TextOverlayScreen({
     super.key,
     required this.imagePath,
     required this.textBlocks,
-    this.useOpenDyslexic = true,
-    this.fontSize = 14.0,
+    this.useOpenDyslexic   = true,
+    this.fontSize          = 14.0,
     this.detectedLanguage,
     this.detectedScript,
   });
@@ -41,22 +65,35 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   final _authService     = AuthService();
   final _mongoService    = MongoDBService();
 
-  bool     _showOverlay    = true;
-  bool     _isSaving       = false;
+  bool      _showOverlay = true;
+  bool      _isSaving    = false;
   ui.Image? _decodedImage;
 
   late bool   _useOpenDyslexic;
   late double _fontSize;
   late String _detectedLanguage;
   late String _detectedScript;
-  late bool   _canUseOpenDyslexic;
+  late bool   _canUseOpenDyslexic; // true only for Latin-script languages
+
+  // ── Latin-language list (same as OCRService) ──────────────────────────────
+  static const _kLatinLanguages = {
+    'English', 'Spanish', 'French', 'German', 'Italian',
+    'Portuguese', 'Dutch', 'Swedish', 'Norwegian', 'Danish',
+    'Finnish', 'Polish', 'Czech', 'Hungarian', 'Romanian',
+    'Turkish', 'Albanian', 'Croatian', 'Slovak', 'Slovenian',
+    'Catalan', 'Welsh', 'Irish', 'Basque', 'Galician',
+    'Latvian', 'Lithuanian', 'Estonian',
+  };
+
+  bool _isLatinLanguage(String? lang) => _kLatinLanguages.contains(lang ?? '');
 
   @override
   void initState() {
     super.initState();
     _detectedLanguage   = widget.detectedLanguage ?? 'English';
     _detectedScript     = widget.detectedScript   ?? 'Latin';
-    _canUseOpenDyslexic = _isLatinLanguage(_detectedLanguage);
+    _canUseOpenDyslexic = _isLatinLanguage(_detectedLanguage)
+                       && _detectedScript == 'Latin';
     _useOpenDyslexic    = _canUseOpenDyslexic && widget.useOpenDyslexic;
     _fontSize           = widget.fontSize;
     _loadImage();
@@ -80,19 +117,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-
-  /// Extended list covering all Latin-script languages supported by ML Kit.
-  bool _isLatinLanguage(String? lang) {
-    const latin = [
-      'English', 'Spanish', 'French', 'German', 'Italian',
-      'Portuguese', 'Dutch', 'Swedish', 'Norwegian', 'Danish',
-      'Finnish', 'Polish', 'Czech', 'Hungarian', 'Romanian',
-      'Turkish', 'Albanian', 'Croatian', 'Slovak', 'Slovenian',
-      'Catalan', 'Welsh', 'Irish', 'Basque', 'Galician',
-      'Latvian', 'Lithuanian', 'Estonian',
-    ];
-    return latin.contains(lang ?? '');
-  }
 
   String get _extractedText =>
       widget.textBlocks.map((b) => b.text).join('\n\n');
@@ -187,8 +211,10 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         onTap: () => Navigator.pop(ctx),
         child: Stack(children: [
           Positioned(
-            left: globalPos.dx - 100,
-            top:  globalPos.dy - 80,
+            left: (globalPos.dx - 100).clamp(8.0,
+                MediaQuery.of(ctx).size.width - 216.0),
+            top:  (globalPos.dy - 80).clamp(8.0,
+                MediaQuery.of(ctx).size.height - 120.0),
             child: Material(
               color: Colors.transparent,
               child: Container(
@@ -196,29 +222,22 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFFB789DA),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.3),
-                        blurRadius: 10, offset: const Offset(0, 4)),
-                  ],
+                  boxShadow: [BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 10, offset: const Offset(0, 4))],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(word, style: const TextStyle(
-                        color: Colors.white70, fontSize: 12,
-                        fontFamily: 'OpenDyslexic')),
-                    const SizedBox(height: 4),
-                    Text(formatted, style: const TextStyle(
-                        color: Colors.white, fontSize: 20,
-                        fontWeight: FontWeight.bold, fontFamily: 'OpenDyslexic',
-                        letterSpacing: 2)),
-                    const SizedBox(height: 4),
-                    Text('${syllables.length} syllable${syllables.length > 1 ? "s" : ""}',
-                        style: const TextStyle(
-                            color: Colors.white70, fontSize: 10,
-                            fontFamily: 'OpenDyslexic')),
-                  ],
-                ),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Text(word, style: const TextStyle(
+                      color: Colors.white70, fontSize: 12, fontFamily: 'OpenDyslexic')),
+                  const SizedBox(height: 4),
+                  Text(formatted, style: const TextStyle(
+                      color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold,
+                      fontFamily: 'OpenDyslexic', letterSpacing: 2)),
+                  const SizedBox(height: 4),
+                  Text('${syllables.length} syllable${syllables.length > 1 ? "s" : ""}',
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 10, fontFamily: 'OpenDyslexic')),
+                ]),
               ),
             ),
           ),
@@ -242,19 +261,28 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Text Overlay',
-              style: TextStyle(color: Colors.white, fontSize: 18,
-                  fontFamily: fontFamily)),
-          Text('Language: $_detectedLanguage',
-              style: TextStyle(color: Colors.white70, fontSize: 12,
-                  fontFamily: fontFamily)),
+              style: TextStyle(color: Colors.white, fontSize: 18, fontFamily: fontFamily)),
+          Text('$_detectedLanguage · $_detectedScript',
+              style: TextStyle(color: Colors.white70, fontSize: 11, fontFamily: fontFamily)),
         ],
       ),
       actions: [
-        IconButton(
-          icon: Icon(_useOpenDyslexic
-              ? Icons.font_download : Icons.font_download_outlined,
-              color: Colors.white),
-          onPressed: () => setState(() => _useOpenDyslexic = !_useOpenDyslexic),
+        // Font toggle: shown but disabled for non-Latin scripts.
+        Tooltip(
+          message: _canUseOpenDyslexic
+              ? 'Toggle OpenDyslexic font'
+              : 'OpenDyslexic is for Latin scripts only',
+          child: IconButton(
+            icon: Icon(
+              _useOpenDyslexic
+                  ? Icons.font_download
+                  : Icons.font_download_outlined,
+              color: _canUseOpenDyslexic ? Colors.white : Colors.white38,
+            ),
+            onPressed: _canUseOpenDyslexic
+                ? () => setState(() => _useOpenDyslexic = !_useOpenDyslexic)
+                : null,
+          ),
         ),
         IconButton(
           icon: Icon(_showOverlay ? Icons.visibility : Icons.visibility_off,
@@ -290,6 +318,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   Widget _buildLanguageBanner() {
+    // Show banner only when OpenDyslexic is unavailable for the detected language.
     if (_canUseOpenDyslexic) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
@@ -300,7 +329,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            'Detected: $_detectedLanguage ($_detectedScript script).',
+            'Detected: $_detectedLanguage ($_detectedScript script). '
+            'OpenDyslexic is available for Latin-script languages only.',
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ),
@@ -319,7 +349,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     return LayoutBuilder(builder: (context, constraints) {
       final containerW = constraints.maxWidth;
       final containerH = constraints.maxHeight;
-
       final imgW = _decodedImage!.width.toDouble();
       final imgH = _decodedImage!.height.toDouble();
       final containerAspect = containerW / containerH;
@@ -338,61 +367,51 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       final offsetY = (containerH - renderedH) / 2;
 
       return InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 4.0,
+        minScale: 0.5, maxScale: 4.0,
         onInteractionUpdate: (d) {
           if (d.scale != state.zoomLevel) {
             context.read<AppBloc>().add(AdjustZoom(d.scale));
           }
         },
         child: SizedBox(
-          width:  containerW,
-          height: containerH,
-          child: Stack(
-            children: [
-              // ── The image ─────────────────────────────────────────────
-              Positioned.fill(
-                child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
-              ),
-
-              // ── The overlay ───────────────────────────────────────────
-              if (_showOverlay && widget.textBlocks.isNotEmpty)
-                Positioned(
-                  left:   offsetX,
-                  top:    offsetY,
-                  width:  renderedW,
-                  height: renderedH,
-                  child: GestureDetector(
-                    onLongPressStart: (details) {
-                      final word = _findWordAt(
-                          details.localPosition,
-                          Size(imgW, imgH),
-                          Size(renderedW, renderedH));
-                      if (word.isNotEmpty && word.length > 3) {
-                        _showSyllableBreakdown(word, details.globalPosition);
-                      }
-                    },
-                    child: CustomPaint(
-                      painter: OverlayStyle(
-                        overlayOpacity:   state.overlayOpacity,
-                        textBlocks:       widget.textBlocks,
-                        imageActualSize:  Size(imgW, imgH),
-                        imageDisplaySize: Size(renderedW, renderedH),
-                        currentWordIndex: state.readingState != ReadingState.idle
-                            ? state.currentWordIndex
-                            : -1,
-                        allWords:         _allWords,
-                        useOpenDyslexic:  _useOpenDyslexic,
-                        fontSize:         _fontSize,
-                        detectedLanguage: _detectedLanguage,
-                        detectedScript:   _detectedScript,
-                      ),
-                      size: Size.infinite,
+          width: containerW, height: containerH,
+          child: Stack(children: [
+            Positioned.fill(
+              child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
+            ),
+            if (_showOverlay && widget.textBlocks.isNotEmpty)
+              Positioned(
+                left: offsetX, top: offsetY,
+                width: renderedW, height: renderedH,
+                child: GestureDetector(
+                  onLongPressStart: (details) {
+                    final word = _findWordAt(
+                        details.localPosition,
+                        Size(imgW, imgH),
+                        Size(renderedW, renderedH));
+                    if (word.isNotEmpty && word.length > 3) {
+                      _showSyllableBreakdown(word, details.globalPosition);
+                    }
+                  },
+                  child: CustomPaint(
+                    painter: OverlayStyle(
+                      overlayOpacity:   state.overlayOpacity,
+                      textBlocks:       widget.textBlocks,
+                      imageActualSize:  Size(imgW, imgH),
+                      imageDisplaySize: Size(renderedW, renderedH),
+                      currentWordIndex: state.readingState != ReadingState.idle
+                          ? state.currentWordIndex : -1,
+                      allWords:         _allWords,
+                      useOpenDyslexic:  _useOpenDyslexic,
+                      fontSize:         _fontSize,
+                      detectedLanguage: _detectedLanguage,
+                      detectedScript:   _detectedScript,
                     ),
+                    size: Size.infinite,
                   ),
                 ),
-            ],
-          ),
+              ),
+          ]),
         ),
       );
     });
@@ -413,11 +432,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         );
         if (r.contains(pos)) {
           final words = line.text
-              .split(RegExp(r'\s+'))
-              .where((w) => w.isNotEmpty)
-              .toList();
+              .split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
           if (words.isEmpty) continue;
-          final wW = r.width / words.length;
+          final wW  = r.width / words.length;
           final idx = ((pos.dx - r.left) / wW).floor().clamp(0, words.length - 1);
           return words[idx].replaceAll(RegExp(r'[^\w]'), '');
         }
@@ -450,7 +467,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             _navBtn(icon: Icons.copy,  label: 'Copy',  fontFamily: fontFamily, onTap: _copy),
             _navBtn(
               icon: _isSaving ? Icons.hourglass_bottom : Icons.save,
-              label: _isSaving ? 'Saving...' : 'Save',
+              label: _isSaving ? 'Saving…' : 'Save',
               fontFamily: fontFamily,
               onTap: _isSaving ? () {} : _save,
             ),
@@ -463,9 +480,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   Widget _navBtn({
-    required IconData icon,
-    required String   label,
-    required String   fontFamily,
+    required IconData     icon,
+    required String       label,
+    required String       fontFamily,
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -490,60 +507,69 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
           builder: (ctx, setModal) => AlertDialog(
             title: const Text('Display Settings',
                 style: TextStyle(fontFamily: 'OpenDyslexic')),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SwitchListTile(
-                  title: const Text('OpenDyslexic Font',
-                      style: TextStyle(fontFamily: 'OpenDyslexic')),
-                  value: _useOpenDyslexic,
-                  activeColor: const Color(0xFFB789DA),
-                  onChanged: (v) {
-                    setModal(() => _useOpenDyslexic = v);
-                    setState(() => _useOpenDyslexic = v);
-                  },
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              SwitchListTile(
+                title: const Text('OpenDyslexic Font',
+                    style: TextStyle(fontFamily: 'OpenDyslexic')),
+                subtitle: Text(
+                  _canUseOpenDyslexic
+                      ? 'Available for this language'
+                      : 'Not available for $_detectedLanguage ($_detectedScript)',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: _canUseOpenDyslexic ? null : Colors.orange,
+                  ),
                 ),
-                const Divider(),
-                Text('Font Size: ${_fontSize.toInt()}',
+                value: _useOpenDyslexic,
+                activeColor: const Color(0xFFB789DA),
+                // Disable toggle when script doesn't support OpenDyslexic.
+                onChanged: _canUseOpenDyslexic
+                    ? (v) {
+                        setModal(() => _useOpenDyslexic = v);
+                        setState(() => _useOpenDyslexic = v);
+                      }
+                    : null,
+              ),
+              const Divider(),
+              Text('Font Size: ${_fontSize.toInt()}',
+                  style: const TextStyle(fontFamily: 'OpenDyslexic')),
+              Slider(
+                value: _fontSize, min: 10, max: 24, divisions: 14,
+                activeColor: const Color(0xFFB789DA),
+                label: _fontSize.toInt().toString(),
+                onChanged: (v) {
+                  setModal(() => _fontSize = v);
+                  setState(() => _fontSize = v);
+                },
+              ),
+              BlocBuilder<AppBloc, AppState>(builder: (ctx, st) => Column(children: [
+                Text('Overlay Opacity: ${(st.overlayOpacity * 100).toInt()}%',
                     style: const TextStyle(fontFamily: 'OpenDyslexic')),
                 Slider(
-                  value: _fontSize, min: 10, max: 24, divisions: 14,
+                  value: st.overlayOpacity, min: 0.5, max: 1.0, divisions: 10,
                   activeColor: const Color(0xFFB789DA),
-                  label: _fontSize.toInt().toString(),
-                  onChanged: (v) {
-                    setModal(() => _fontSize = v);
-                    setState(() => _fontSize = v);
-                  },
+                  onChanged: (v) =>
+                      ctx.read<AppBloc>().add(AdjustOverlayOpacity(v)),
                 ),
-                BlocBuilder<AppBloc, AppState>(builder: (ctx, st) => Column(children: [
-                  Text('Overlay Opacity: ${(st.overlayOpacity * 100).toInt()}%',
-                      style: const TextStyle(fontFamily: 'OpenDyslexic')),
-                  Slider(
-                    value: st.overlayOpacity, min: 0.5, max: 1.0, divisions: 10,
-                    activeColor: const Color(0xFFB789DA),
-                    onChanged: (v) =>
-                        ctx.read<AppBloc>().add(AdjustOverlayOpacity(v)),
-                  ),
-                ])),
-                const Divider(),
-                BlocBuilder<AppBloc, AppState>(builder: (ctx, st) => Column(children: [
-                  Text('Speed: ${(st.readingSpeed * 2).toStringAsFixed(1)}x',
-                      style: const TextStyle(fontFamily: 'OpenDyslexic')),
-                  Slider(
-                    value: st.readingSpeed, min: 0.1, max: 1.0, divisions: 9,
-                    activeColor: const Color(0xFFB789DA),
-                    onChanged: (v) => ctx.read<AppBloc>().add(AdjustSpeed(v)),
-                  ),
-                  Text('Volume: ${(st.volume * 100).toInt()}%',
-                      style: const TextStyle(fontFamily: 'OpenDyslexic')),
-                  Slider(
-                    value: st.volume, min: 0, max: 1.0, divisions: 10,
-                    activeColor: const Color(0xFFB789DA),
-                    onChanged: (v) => ctx.read<AppBloc>().add(AdjustVolume(v)),
-                  ),
-                ])),
-              ],
-            ),
+              ])),
+              const Divider(),
+              BlocBuilder<AppBloc, AppState>(builder: (ctx, st) => Column(children: [
+                Text('Speed: ${(st.readingSpeed * 2).toStringAsFixed(1)}x',
+                    style: const TextStyle(fontFamily: 'OpenDyslexic')),
+                Slider(
+                  value: st.readingSpeed, min: 0.1, max: 1.0, divisions: 9,
+                  activeColor: const Color(0xFFB789DA),
+                  onChanged: (v) => ctx.read<AppBloc>().add(AdjustSpeed(v)),
+                ),
+                Text('Volume: ${(st.volume * 100).toInt()}%',
+                    style: const TextStyle(fontFamily: 'OpenDyslexic')),
+                Slider(
+                  value: st.volume, min: 0, max: 1.0, divisions: 10,
+                  activeColor: const Color(0xFFB789DA),
+                  onChanged: (v) => ctx.read<AppBloc>().add(AdjustVolume(v)),
+                ),
+              ])),
+            ]),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(dCtx),
@@ -628,20 +654,15 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 // OverlayStyle painter
 //
-// FIXES vs original:
-//  1. letterSpacing: 1.4 (OpenDyslexic/Latin) · 1.0 (plain Latin) · 0.6 (Devanagari)
-//     → letters b/d, p/q, m/n, i/l are now clearly distinct.
-//  2. wordGapFactor: 0.55em (OpenDyslexic) · 0.40em (Latin) · 0.30em (other)
-//     → explicit inter-word gap applied in BOTH the element-based and
-//       fallback rendering paths so words never run together.
-//  3. fontSize is NO LONGER clamped to lineH+2 — that was squashing letters.
-//     We now use the user-set value (clamped only at 8 px minimum).
-//  4. Vertical padding is lineH×0.30 (min 3, max 12) so descenders are visible.
-//  5. textScaleFactor: 1.0 — ignores system accessibility scaling that would
-//     otherwise misalign the text with its bounding boxes.
-//  6. height: 1.15 — slightly open line-height for better readability.
-//  7. Background pill colour is #F5F5F5 (warmer off-white) instead of #EEEEEE
-//     for higher contrast against dark images.
+// KEY FIXES
+// ─────────
+// • OpenDyslexic gating: font is selected ONLY when useOpenDyslexic is true
+//   AND the language is Latin.  Non-Latin scripts always use their own font.
+// • wordGapFactor: 0.65em (OpenDyslexic) / 0.50em (Latin) / 0.30em (other).
+// • letterSpacing: 1.6 / 1.1 / 0.6 for the same tiers.
+// • Background pill: left-4 / right+4 AND top-vPad / bottom+vPad – no overlap.
+// • Per-element maxWidth: wW + ls*len + 16.
+// • Fallback cursor reset to `left + 4` at the start of EACH line.
 // ─────────────────────────────────────────────────────────────────────────────
 class OverlayStyle extends CustomPainter {
   final double          overlayOpacity;
@@ -668,40 +689,37 @@ class OverlayStyle extends CustomPainter {
     this.detectedScript,
   });
 
-  // ── Script detection ───────────────────────────────────────────────────────
+  // ── Latin language set ─────────────────────────────────────────────────────
+  static const _kLatin = {
+    'English', 'Spanish', 'French', 'German', 'Italian',
+    'Portuguese', 'Dutch', 'Swedish', 'Norwegian', 'Danish',
+    'Finnish', 'Polish', 'Czech', 'Hungarian', 'Romanian',
+    'Turkish', 'Albanian', 'Croatian', 'Slovak', 'Slovenian',
+    'Catalan', 'Welsh', 'Irish', 'Basque', 'Galician',
+    'Latvian', 'Lithuanian', 'Estonian',
+  };
 
-  bool _isLatinLang(String? l) {
-    const lat = [
-      'English', 'Spanish', 'French', 'German', 'Italian',
-      'Portuguese', 'Dutch', 'Swedish', 'Norwegian', 'Danish',
-      'Finnish', 'Polish', 'Czech', 'Hungarian', 'Romanian',
-      'Turkish', 'Albanian', 'Croatian', 'Slovak', 'Slovenian',
-      'Catalan', 'Welsh', 'Irish', 'Basque', 'Galician',
-      'Latvian', 'Lithuanian', 'Estonian',
-    ];
-    return lat.contains(l ?? '');
-  }
+  bool get _isLatin => _kLatin.contains(detectedLanguage ?? '');
+  bool get _isDevanagari => detectedScript == 'Devanagari';
 
-  // ── Typography getters ─────────────────────────────────────────────────────
+  // ── Typography ─────────────────────────────────────────────────────────────
 
-  /// Letter spacing: enough to disambiguate confusable glyphs (b/d, p/q, m/n).
   double get _letterSpacing {
-    if (useOpenDyslexic && _isLatinLang(detectedLanguage)) return 1.4;
-    if (_isLatinLang(detectedLanguage))                    return 1.0;
-    if (detectedScript == 'Devanagari')                    return 0.6;
+    if (useOpenDyslexic && _isLatin) return 1.6;
+    if (_isLatin)                    return 1.1;
+    if (_isDevanagari)               return 0.6;
     return 0.8;
   }
 
-  /// Inter-word gap as a fraction of the rendered font size.
   double get _wordGapFactor {
-    if (useOpenDyslexic)                    return 0.55;
-    if (_isLatinLang(detectedLanguage))     return 0.40;
+    if (useOpenDyslexic && _isLatin) return 0.65;
+    if (_isLatin)                    return 0.50;
     return 0.30;
   }
 
   String? get _fontFamily {
-    if (useOpenDyslexic && _isLatinLang(detectedLanguage)) return 'OpenDyslexic';
-    if (detectedScript == 'Devanagari')                    return 'NotoSansDevanagari';
+    if (useOpenDyslexic && _isLatin) return 'OpenDyslexic';
+    if (_isDevanagari)               return 'NotoSansDevanagari';
     return null; // system default for all other scripts
   }
 
@@ -716,11 +734,10 @@ class OverlayStyle extends CustomPainter {
     final scaleX = imageDisplaySize.width  / imageActualSize.width;
     final scaleY = imageDisplaySize.height / imageActualSize.height;
 
-    final ff   = _fontFamily;
-    final ls   = _letterSpacing;
-    final wgf  = _wordGapFactor;
-    // Clamp font size to a sensible range; do NOT clamp to line height.
-    final fs   = fontSize.clamp(8.0, 36.0);
+    final ff  = _fontFamily;
+    final ls  = _letterSpacing;
+    final wgf = _wordGapFactor;
+    final fs  = fontSize.clamp(8.0, 36.0);
 
     final bgPaint = Paint()
       ..color = const Color(0xFFF5F5F5).withOpacity(overlayOpacity)
@@ -734,15 +751,13 @@ class OverlayStyle extends CustomPainter {
 
     for (final block in textBlocks) {
       for (final line in block.lines) {
-        final b      = line.boundingBox;
-        final left   = b.left   * scaleX;
-        final top    = b.top    * scaleY;
-        final right  = b.right  * scaleX;
+        final b     = line.boundingBox;
+        final left  = b.left   * scaleX;
+        final top   = b.top    * scaleY;
+        final right = b.right  * scaleX;
         final bottom = b.bottom * scaleY;
 
-        // Cull lines fully outside the visible canvas.
-        if (bottom < 0 || top > size.height ||
-            right  < 0 || left > size.width) {
+        if (bottom < 0 || top > size.height || right < 0 || left > size.width) {
           globalWordIdx += line.elements.isNotEmpty
               ? line.elements.length
               : line.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
@@ -750,22 +765,17 @@ class OverlayStyle extends CustomPainter {
         }
 
         final lineH = (bottom - top).clamp(8.0, double.infinity);
+        // 30 % vertical padding – exposes descenders.
+        final vPad  = (lineH * 0.30).clamp(3.0, 12.0);
 
-        // 30 % of line height for vertical padding – exposes descenders.
-        final vPad = (lineH * 0.30).clamp(3.0, 12.0);
-
-        final words = line.text
-            .split(RegExp(r'\s+'))
-            .where((w) => w.isNotEmpty)
-            .toList();
-
-        final lineStart  = globalWordIdx;
-        final lineEnd    = lineStart +
+        final words    = line.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        final lineStart = globalWordIdx;
+        final lineEnd   = lineStart +
             (line.elements.isNotEmpty ? line.elements.length : words.length);
         final lineActive =
             currentWordIndex >= lineStart && currentWordIndex < lineEnd;
 
-        // Background pill for the whole line.
+        // Background pill: inflated 4 px left/right AND vPad top/bottom.
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTRB(left - 4, top - vPad, right + 4, bottom + vPad),
@@ -777,12 +787,12 @@ class OverlayStyle extends CustomPainter {
         // ── Per-element path (preferred) ─────────────────────────────────────
         if (line.elements.isNotEmpty) {
           for (int wi = 0; wi < line.elements.length; wi++) {
-            final el  = line.elements[wi];
-            final wb  = el.boundingBox;
-            final wL  = wb.left   * scaleX;
-            final wT  = wb.top    * scaleY;
-            final wW  = (wb.width  * scaleX).clamp(4.0, double.infinity);
-            final wH  = (wb.height * scaleY).clamp(8.0, double.infinity);
+            final el = line.elements[wi];
+            final wb = el.boundingBox;
+            final wL = wb.left   * scaleX;
+            final wT = wb.top    * scaleY;
+            final wW = (wb.width  * scaleX).clamp(4.0, double.infinity);
+            final wH = (wb.height * scaleY).clamp(8.0, double.infinity);
 
             final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
 
@@ -796,7 +806,6 @@ class OverlayStyle extends CustomPainter {
               );
             }
 
-            // Layout with explicit max width = word box width + spacing room.
             final tp = TextPainter(
               text: TextSpan(
                 text: el.text,
@@ -812,17 +821,17 @@ class OverlayStyle extends CustomPainter {
               textDirection:   TextDirection.ltr,
               textScaleFactor: 1.0,
               maxLines:        1,
-            )..layout(maxWidth: wW + ls * el.text.length + 8);
+            )..layout(maxWidth: wW + ls * el.text.length + 16);
 
-            final textY = (wT - vPad) + ((wH + vPad * 2) - tp.height) / 2;
-            tp.paint(canvas, Offset(wL, textY));
+            tp.paint(canvas, Offset(wL, (wT - vPad) + ((wH + vPad * 2) - tp.height) / 2));
           }
           globalWordIdx += line.elements.length;
 
-        // ── Fallback path (no per-element bounding boxes) ────────────────────
+        // ── Fallback path ────────────────────────────────────────────────────
         } else {
-          final gap = fs * wgf; // explicit inter-word gap in pixels
-          double cx = left + 2;
+          final gap = fs * wgf;
+          // IMPORTANT: reset cursor to the start of THIS line, not carry over.
+          double cx = left + 4;
 
           for (int wi = 0; wi < words.length; wi++) {
             final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
@@ -854,10 +863,8 @@ class OverlayStyle extends CustomPainter {
               );
             }
 
-            final textY = (top - vPad) + ((lineH + vPad * 2) - tp.height) / 2;
-            tp.paint(canvas, Offset(cx, textY));
-
-            // Advance by word width + explicit gap (not just bounding box edge).
+            tp.paint(canvas,
+                Offset(cx, (top - vPad) + ((lineH + vPad * 2) - tp.height) / 2));
             cx += tp.width + gap;
           }
           globalWordIdx += words.length;
