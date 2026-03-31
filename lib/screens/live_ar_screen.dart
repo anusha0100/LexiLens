@@ -4,7 +4,6 @@
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -20,109 +19,88 @@ import 'package:lexilens/services/syllable_service.dart';
 const _kPrimary = Color(0xFF7B4FA6);
 const _kAccent  = Color(0xFFB789DA);
 
-// Minimum ms between OCR calls — 600 ms gives stable, flicker-free output.
-const _kThrottleMs = 600;
+// Throttle: process a frame at most every 700 ms
+const _kThrottleMs = 700;
 
-// How many consecutive empty OCR results are required before the overlay is
-// actually cleared.  This prevents a single bad frame from wiping legible text.
-const _kEmptyFramesToClear = 5;
+// How many consecutive empty OCR frames before clearing the overlay
+const _kEmptyFramesToClear = 4;
 
-// ── Stabilization constants ────────────────────────────────────────────────
-// Only show text when it has been seen this many times consistently
+// Text must be detected in at least this many frames to show
 const _kStabilizationThreshold = 2;
 
-// How long to keep text visible even if it disappears (ms)
-const _kTextStalenessMs = 3000;
+// Keep showing text for this long after last detection (ms)
+const _kTextStalenessMs = 2500;
 
-// ── StabilizedTextBlock: Anti-flicker wrapper for detected text ───────────────
-/// Wraps ML Kit TextBlock with stability tracking to prevent rapid flickering.
+// ─────────────────────────────────────────────────────────────────────────────
+// StabilizedTextBlock
+// ─────────────────────────────────────────────────────────────────────────────
 class StabilizedTextBlock {
-  final TextBlock mlBlock;  // Original ML Kit block
-  int seenCount = 0;        // How many consecutive frames detected this
-  int stalePenalties = 0;   // Increases when text differs slightly
-  DateTime lastSeen;        // For timeout-based removal
-  bool isStable = false;    // Only true when seenCount >= _kStabilizationThreshold
+  TextBlock mlBlock;
+  int seenCount;
+  DateTime lastSeen;
 
-  StabilizedTextBlock(this.mlBlock) : lastSeen = DateTime.now();
+  StabilizedTextBlock(this.mlBlock)
+      : seenCount = 1,
+        lastSeen = DateTime.now();
 
-  /// Increment the seen counter; become stable when threshold is met
-  void incrementSeen() {
+  bool get isStable => seenCount >= _kStabilizationThreshold;
+
+  void refresh(TextBlock newBlock) {
+    mlBlock = newBlock;
     seenCount++;
     lastSeen = DateTime.now();
-    isStable = seenCount >= _kStabilizationThreshold;
   }
 
-  /// Reset counter when text changes significantly
-  void reset() {
-    seenCount = 0;
-    isStable = false;
-    stalePenalties++;
-  }
-
-  /// Check if this block is too old (remove after 3s of not being seen)
-  bool isStale() {
-    return DateTime.now().difference(lastSeen).inMilliseconds > _kTextStalenessMs;
-  }
+  bool get isStale =>
+      DateTime.now().difference(lastSeen).inMilliseconds > _kTextStalenessMs;
 }
 
-// ── TextStabilizer: Manages the stabilization buffer ─────────────────────────
-/// Smooths out OCR noise by maintaining a memory of detected text blocks.
-/// Only displays text when it's been consistently detected across multiple frames.
+// ─────────────────────────────────────────────────────────────────────────────
+// TextStabilizer
+// ─────────────────────────────────────────────────────────────────────────────
 class TextStabilizer {
-  final Map<String, StabilizedTextBlock> _textMemory = {};
+  final Map<String, StabilizedTextBlock> _memory = {};
 
-  /// Update with new detected blocks from OCR
-  /// Returns only the STABLE text blocks safe to display
-  List<StabilizedTextBlock> updateWithNewBlocks(List<TextBlock> newBlocks) {
-    // Mark all existing blocks as "not seen this frame"
-    final seenKeys = <String>{};
+  /// Feed new OCR blocks. Returns blocks that have stabilised.
+  List<TextBlock> update(List<TextBlock> incoming) {
+    final nowKeys = <String>{};
 
-    // Process each new block
-    for (final block in newBlocks) {
-      final key = _getBlockKey(block);
-      seenKeys.add(key);
-
-      if (_textMemory.containsKey(key)) {
-        // Text seen again → increment stability
-        _textMemory[key]!.incrementSeen();
+    for (final block in incoming) {
+      final key = _key(block);
+      nowKeys.add(key);
+      if (_memory.containsKey(key)) {
+        _memory[key]!.refresh(block);
       } else {
-        // New text → add to memory with seenCount = 0
-        _textMemory[key] = StabilizedTextBlock(block);
+        _memory[key] = StabilizedTextBlock(block);
       }
     }
 
-    // Remove text blocks that weren't detected this frame AND are stale
-    _textMemory.removeWhere((key, block) {
-      if (!seenKeys.contains(key)) {
-        // Not in this frame - increment penalties and check staleness
-        block.reset();
-        return block.isStale();
-      }
-      return false;
-    });
+    // Prune entries not seen this frame that have gone stale
+    _memory.removeWhere((k, v) => !nowKeys.contains(k) && v.isStale);
 
-    // Return only stable blocks
-    return _textMemory.values
-        .where((block) => block.isStable)
+    return _memory.values
+        .where((b) => b.isStable)
+        .map((b) => b.mlBlock)
         .toList();
   }
 
-  /// Generate a unique key for a text block based on content and position
-  String _getBlockKey(TextBlock block) {
-    // Use text + approximate position as key
-    final text = block.text.replaceAll(RegExp(r'\s+'), '').toLowerCase();
-    final posKey = 
-        '${block.boundingBox.left.toStringAsFixed(0)}_'
-        '${block.boundingBox.top.toStringAsFixed(0)}';
-    return '$text|$posKey';
+  String _key(TextBlock block) {
+    final txt =
+        block.text.replaceAll(RegExp(r'\s+'), '').toLowerCase().substring(
+              0,
+              block.text.length.clamp(0, 12),
+            );
+    final x = (block.boundingBox.left / 20).round();
+    final y = (block.boundingBox.top  / 20).round();
+    return '$txt|$x,$y';
   }
 
-  /// Clear all memory
-  void clear() {
-    _textMemory.clear();
-  }
+  void clear() => _memory.clear();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LiveArScreen
+// ─────────────────────────────────────────────────────────────────────────────
 class LiveArScreen extends StatefulWidget {
   const LiveArScreen({super.key});
   @override
@@ -131,84 +109,56 @@ class LiveArScreen extends StatefulWidget {
 
 class _LiveArScreenState extends State<LiveArScreen>
     with WidgetsBindingObserver {
-  // ── Camera ────────────────────────────────────────────────────────────────
+  // ── Camera ─────────────────────────────────────────────────────────────────
   CameraController? _controller;
   List<CameraDescription>? _cameras;
   bool _cameraReady = false;
 
-  // ── OCR ───────────────────────────────────────────────────────────────────
-  // Single Latin recogniser for the live stream; Devanagari runs only when
-  // Latin yields nothing, avoiding two heavy ML calls per frame.
-  final TextRecognizer _recognizer =
+  // ── OCR ────────────────────────────────────────────────────────────────────
+  final _latinRecognizer =
       TextRecognizer(script: TextRecognitionScript.latin);
-  final TextRecognizer _devRecognizer =
+  final _devaRecognizer =
       TextRecognizer(script: TextRecognitionScript.devanagiri);
 
-  // Guards: at most one OCR future in-flight at a time.
-  bool _ocrRunning = false;
-  int  _lastOcrMs  = 0;
+  bool _ocrBusy = false;
+  int  _lastOcrMs = 0;
 
-  // ── Overlay state — written only from the main isolate via setState ────────
-  List<TextBlock> _textBlocks = [];
-  Size  _imageSize      = Size.zero;
-  int   _sensorRotation = 0;
+  // ── Overlay state ───────────────────────────────────────────────────────────
+  List<TextBlock> _displayBlocks = [];
 
-  // FIX: Track consecutive empty frames so we don't wipe the overlay on a
-  // single blurry / transitional frame.
-  int _emptyFrameCount = 0;
+  // Raw image dimensions as captured (before any rotation).
+  // e.g. for a 90° sensor on most Android phones: width=480, height=640
+  Size _rawImageSize = Size.zero;
 
-  // ── Anti-flicker stabilization ────────────────────────────────────────────
-  // Tracks text blocks across frames to prevent rapid flickering.
-  // Only displays blocks when they've been seen consistently (seenCount >= 2).
-  late final TextStabilizer _stabilizer = TextStabilizer();
+  // Sensor orientation degrees (0, 90, 180, 270) from CameraDescription.
+  int _sensorDeg = 0;
 
-  // ── UI controls ───────────────────────────────────────────────────────────
+  int _emptyCount = 0;
+
+  final _stabilizer = TextStabilizer();
+
+  // ── Controls ────────────────────────────────────────────────────────────────
   bool   _useOpenDyslexic = true;
   double _fontSize        = 16.0;
   double _overlayOpacity  = 0.85;
   bool   _overlayVisible  = true;
-  bool   _isFlashOn       = false;
+  bool   _flashOn         = false;
 
   final _syllableService = SyllableService();
 
-  // ── Syllable popup ────────────────────────────────────────────────────────
-  String?       _tappedWord;
-  List<String>? _tappedSyllables;
-  Offset?       _tappedPosition;
+  // ── Syllable popup ──────────────────────────────────────────────────────────
+  String?       _popWord;
+  List<String>? _popSyllables;
+  Offset?       _popPosition;
 
-  // ── Pending overlay update — batched to avoid redundant rebuilds ──────────
-  // New blocks are stashed here; a single post-frame callback flushes them.
+  // ── Pending update (batch setState) ─────────────────────────────────────────
   List<TextBlock>? _pendingBlocks;
-  Size?            _pendingImageSize;
+  Size?            _pendingSize;
   bool             _pendingScheduled = false;
 
-  /// Helper: Rotate a coordinate rectangle from image space to screen space
-  Rect _rotateRect(Rect box) {
-    if (_sensorRotation == 0 || _sensorRotation == 180) {
-      return box;
-    }
-
-    final double imgW = _imageSize.width;
-    final double imgH = _imageSize.height;
-
-    if (_sensorRotation == 90) {
-      // 90° clockwise: (x, y) → (imgH - y, x)
-      final newLeft = imgH - box.bottom;
-      final newTop = box.left;
-      final newRight = imgH - box.top;
-      final newBottom = box.right;
-      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
-    } else if (_sensorRotation == 270) {
-      // 270° clockwise: (x, y) → (y, imgW - x)
-      final newLeft = box.top;
-      final newTop = imgW - box.right;
-      final newRight = box.bottom;
-      final newBottom = imgW - box.left;
-      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
-    }
-
-    return box;
-  }
+  // ── Actual screen size used by the overlay ───────────────────────────────────
+  // Captured once in build() so the hit-test uses the same size as the painter.
+  Size _screenSize = Size.zero;
 
   @override
   void initState() {
@@ -227,199 +177,173 @@ class _LiveArScreenState extends State<LiveArScreen>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
+  void didChangeAppLifecycleState(AppLifecycleState st) {
     if (_controller == null || !_controller!.value.isInitialized) return;
-    if (state == AppLifecycleState.inactive) {
-      _stopStream();
-    } else if (state == AppLifecycleState.resumed) {
-      _startStream();
-    }
+    if (st == AppLifecycleState.inactive) _stopStream();
+    else if (st == AppLifecycleState.resumed) _startStream();
   }
 
-  // ── Camera init ───────────────────────────────────────────────────────────
+  // ── Camera initialisation ───────────────────────────────────────────────────
 
   Future<void> _initCamera() async {
     try {
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) {
-        _showError('No camera found on this device.');
-        return;
+        _err('No camera found.'); return;
       }
-      _sensorRotation = _cameras![0].sensorOrientation;
+
+      _sensorDeg = _cameras![0].sensorOrientation;
 
       _controller = CameraController(
         _cameras![0],
-        // Low resolution → faster OCR, less flicker.
-        ResolutionPreset.low,
+        ResolutionPreset.medium,   // good accuracy/speed balance
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
             ? ImageFormatGroup.nv21
             : ImageFormatGroup.bgra8888,
       );
-
       await _controller!.initialize();
       if (!mounted) return;
-
       setState(() => _cameraReady = true);
       _startStream();
     } catch (e) {
-      _showError('Camera initialisation failed: $e');
+      _err('Camera init failed: $e');
     }
   }
 
-  void _startStream() => _controller?.startImageStream(_onCameraImage);
+  void _startStream() => _controller?.startImageStream(_onFrame);
 
   void _stopStream() {
     if (_controller?.value.isStreamingImages == true) {
-      _controller?.stopImageStream();
+      _controller!.stopImageStream();
     }
   }
 
-  // ── Frame handler ─────────────────────────────────────────────────────────
+  // ── Frame processing ─────────────────────────────────────────────────────────
 
-  void _onCameraImage(CameraImage image) {
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    if (_ocrRunning || nowMs - _lastOcrMs < _kThrottleMs) return;
-
-    _ocrRunning = true;
-    _lastOcrMs  = nowMs;
-
-    _processFrame(image).catchError((_) {}).whenComplete(() {
-      _ocrRunning = false;
-    });
+  void _onFrame(CameraImage img) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_ocrBusy || now - _lastOcrMs < _kThrottleMs) return;
+    _ocrBusy  = true;
+    _lastOcrMs = now;
+    _processFrame(img)
+        .catchError((_) {})
+        .whenComplete(() => _ocrBusy = false);
   }
 
-  Future<void> _processFrame(CameraImage image) async {
-    final inputImage = _buildInputImage(image);
+  Future<void> _processFrame(CameraImage img) async {
+    final inputImage = _toInputImage(img);
     if (inputImage == null) return;
 
-    final result = await _recognizer.processImage(inputImage);
-    List<TextBlock> blocks = result.blocks;
-
-    // Only fall back to Devanagari when Latin yields nothing.
-    if (blocks.isEmpty || result.text.trim().isEmpty) {
-      final devResult = await _devRecognizer.processImage(inputImage);
-      if (devResult.text.isNotEmpty) blocks = devResult.blocks;
+    // Try Latin first; fall back to Devanagari only when Latin yields nothing.
+    var result = await _latinRecognizer.processImage(inputImage);
+    if (result.blocks.isEmpty) {
+      final dev = await _devaRecognizer.processImage(inputImage);
+      if (dev.blocks.isNotEmpty) result = dev;
     }
 
-    // ── Stabilization: Filter blocks through memory buffer ─────────────────────
-    // Only display blocks that have been seen consistently (seenCount >= threshold).
-    // This prevents flicker from brief, transient detections.
-    final stabilizedBlocks = _stabilizer.updateWithNewBlocks(blocks);
+    final stable = _stabilizer.update(result.blocks);
 
-    // FIX: Stability — only clear the overlay after _kEmptyFramesToClear
-    // consecutive empty results.  This prevents a single blurry frame from
-    // making the overlay vanish and reappear (flicker).
-    if (stabilizedBlocks.isEmpty) {
-      _emptyFrameCount++;
-      if (_emptyFrameCount < _kEmptyFramesToClear) {
-        // Keep the existing overlay; do not schedule a rebuild.
-        return;
-      }
-      // Enough consecutive empty frames — now it is safe to clear.
+    if (stable.isEmpty) {
+      _emptyCount++;
+      if (_emptyCount < _kEmptyFramesToClear) return; // hold old overlay
     } else {
-      _emptyFrameCount = 0;
+      _emptyCount = 0;
     }
 
-    // Convert StabilizedTextBlock back to TextBlock for rendering
-    final displayBlocks = stabilizedBlocks.map((s) => s.mlBlock).toList();
-
-    _pendingBlocks    = displayBlocks;
-    _pendingImageSize = Size(image.width.toDouble(), image.height.toDouble());
+    _pendingBlocks = stable;
+    _pendingSize   = Size(img.width.toDouble(), img.height.toDouble());
 
     if (!_pendingScheduled) {
       _pendingScheduled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() {
-          if (_pendingBlocks    != null) _textBlocks = _pendingBlocks!;
-          if (_pendingImageSize != null) _imageSize  = _pendingImageSize!;
+          if (_pendingBlocks != null) _displayBlocks = _pendingBlocks!;
+          if (_pendingSize   != null) _rawImageSize  = _pendingSize!;
           _pendingBlocks    = null;
-          _pendingImageSize = null;
+          _pendingSize      = null;
           _pendingScheduled = false;
         });
       });
     }
   }
-InputImage? _buildInputImage(CameraImage image) {
-    final camera = _cameras?[0];
-    if (camera == null) return null;
 
-    final rotation = InputImageRotationValue.fromRawValue(camera.sensorOrientation);
+  // ── InputImage builder ────────────────────────────────────────────────────────
+  //
+  // For NV21 (Android) the camera gives us multiple planes:
+  //   plane[0] = Y  (luma),  bytesPerRow = width,        length = width * height
+  //   plane[1] = UV (chroma) interleaved, length = width * height / 2
+  //
+  // ML Kit's fromBytes() for NV21 expects the COMPLETE NV21 buffer
+  // (Y immediately followed by interleaved VU), so we must concatenate all planes.
+  //
+  // For iOS bgra8888 there is only one plane, so we just use planes[0].bytes.
+  InputImage? _toInputImage(CameraImage img) {
+    final cam = _cameras?[0];
+    if (cam == null) return null;
+
+    final rotation = InputImageRotationValue.fromRawValue(cam.sensorOrientation);
     if (rotation == null) return null;
 
-    final format = InputImageFormatValue.fromRawValue(image.format.raw);
+    final format = InputImageFormatValue.fromRawValue(img.format.raw);
     if (format == null) return null;
 
-    // FIX: Concatenate all planes so NV21 on Android receives both Y + UV data
-    final List<int> allBytes = [];
-    for (final Plane plane in image.planes) {
-      allBytes.addAll(plane.bytes);
+    Uint8List bytes;
+    if (Platform.isAndroid) {
+      // Concatenate all planes to build a proper NV21 buffer.
+      final allBytes = <int>[];
+      for (final plane in img.planes) {
+        allBytes.addAll(plane.bytes);
+      }
+      bytes = Uint8List.fromList(allBytes);
+    } else {
+      bytes = img.planes[0].bytes;
     }
-    final bytes = Uint8List.fromList(allBytes);
 
     return InputImage.fromBytes(
       bytes: bytes,
       metadata: InputImageMetadata(
-        size:        Size(image.width.toDouble(), image.height.toDouble()),
+        size:        Size(img.width.toDouble(), img.height.toDouble()),
         rotation:    rotation,
         format:      format,
-        bytesPerRow: image.planes.first.bytesPerRow,
+        bytesPerRow: img.planes[0].bytesPerRow,
       ),
     );
   }
 
-
-  // ── Flash ──────────────────────────────────────────────────────────────────
+  // ── Flash ────────────────────────────────────────────────────────────────────
 
   Future<void> _toggleFlash() async {
     if (_controller == null) return;
-    setState(() => _isFlashOn = !_isFlashOn);
-    await _controller!
-        .setFlashMode(_isFlashOn ? FlashMode.torch : FlashMode.off);
+    setState(() => _flashOn = !_flashOn);
+    await _controller!.setFlashMode(_flashOn ? FlashMode.torch : FlashMode.off);
   }
 
-  // ── Syllable popup ─────────────────────────────────────────────────────────
+  // ── Long-press → syllable popup ──────────────────────────────────────────────
 
   void _onLongPress(LongPressStartDetails details) {
-    if (_textBlocks.isEmpty || _imageSize == Size.zero) return;
+    if (_displayBlocks.isEmpty || _rawImageSize == Size.zero) return;
+    final touch = details.localPosition;
 
-    final screenSize = MediaQuery.of(context).size;
-    final touchPos   = details.localPosition;
+    // Derive the same cover-scale transform as the painter uses.
+    final tf = _CoverTransform(_rawImageSize, _sensorDeg, _screenSize);
 
-    final bool   rotated = _sensorRotation == 90 || _sensorRotation == 270;
-    final double imageW  = rotated ? _imageSize.height : _imageSize.width;
-    final double imageH  = rotated ? _imageSize.width  : _imageSize.height;
-    final double scaleX  = screenSize.width  / imageW;
-    final double scaleY  = screenSize.height / imageH;
-
-    for (final block in _textBlocks) {
+    for (final block in _displayBlocks) {
       for (final line in block.lines) {
-        for (final element in line.elements) {
-          final box = element.boundingBox;
-          // Apply rotation transformation to bounding box
-          final rotatedBox = _rotateRect(box);
-          final scaled = Rect.fromLTRB(
-            rotatedBox.left  * scaleX, rotatedBox.top    * scaleY,
-            rotatedBox.right * scaleX, rotatedBox.bottom * scaleY,
-          );
-          if (scaled.contains(touchPos)) {
-            final word = element.text.replaceAll(RegExp(r'[^\w]'), '');
+        for (final el in line.elements) {
+          final screenRect = tf.toScreen(el.boundingBox);
+          if (screenRect.contains(touch)) {
+            final word = el.text.replaceAll(RegExp(r'[^\w]'), '');
             if (word.length > 2) {
               final syllables = _syllableService.breakIntoSyllables(word);
               setState(() {
-                _tappedWord      = word;
-                _tappedSyllables = syllables;
-                _tappedPosition  = details.globalPosition;
+                _popWord      = word;
+                _popSyllables = syllables;
+                _popPosition  = details.globalPosition;
               });
               Future.delayed(const Duration(seconds: 3), () {
-                if (mounted) {
-                  setState(() {
-                    _tappedWord = null;
-                    _tappedSyllables = null;
-                    _tappedPosition  = null;
-                  });
-                }
+                if (mounted) setState(() { _popWord = null; _popSyllables = null; });
               });
             }
             return;
@@ -429,13 +353,12 @@ InputImage? _buildInputImage(CameraImage image) {
     }
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  void _showError(String msg) {
+  void _err(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
   }
 
   @override
@@ -443,22 +366,24 @@ InputImage? _buildInputImage(CameraImage image) {
     WidgetsBinding.instance.removeObserver(this);
     _stopStream();
     _controller?.dispose();
-    _recognizer.close();
-    _devRecognizer.close();
-    _stabilizer.clear();  // Clean up the text memory buffer
+    _latinRecognizer.close();
+    _devaRecognizer.close();
+    _stabilizer.clear();
     super.dispose();
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    _screenSize = MediaQuery.of(context).size;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Camera preview
+          // ── Camera preview ──────────────────────────────────────────────────
           if (_cameraReady && _controller != null)
             GestureDetector(
               onLongPressStart: _onLongPress,
@@ -467,49 +392,49 @@ InputImage? _buildInputImage(CameraImage image) {
           else
             const Center(child: CircularProgressIndicator(color: _kAccent)),
 
-          // AR overlay with fade-in animation
+          // ── AR text overlay ─────────────────────────────────────────────────
           if (_cameraReady && _overlayVisible &&
-              _textBlocks.isNotEmpty && _imageSize != Size.zero)
+              _displayBlocks.isNotEmpty && _rawImageSize != Size.zero)
             Positioned.fill(
               child: AnimatedOpacity(
-                opacity: _textBlocks.isNotEmpty ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
+                opacity: 1.0,
+                duration: const Duration(milliseconds: 250),
                 child: CustomPaint(
-                  painter: _LiveOverlayPainter(
-                    textBlocks:    _textBlocks,
-                    imageSize:     _imageSize,
+                  painter: _ArOverlayPainter(
+                    blocks:         _displayBlocks,
+                    rawImageSize:   _rawImageSize,
+                    sensorDeg:      _sensorDeg,
                     useOpenDyslexic: _useOpenDyslexic,
-                    fontSize:      _fontSize,
-                    opacity:       _overlayOpacity,
-                    sensorRotation: _sensorRotation,
+                    fontSize:       _fontSize,
+                    opacity:        _overlayOpacity,
                   ),
                 ),
               ),
             ),
 
-          // Syllable popup
-          if (_tappedWord != null && _tappedSyllables != null)
+          // ── Syllable popup ──────────────────────────────────────────────────
+          if (_popWord != null && _popSyllables != null)
             _SyllablePopup(
-              word:      _tappedWord!,
-              syllables: _tappedSyllables!,
-              position:  _tappedPosition ?? Offset.zero,
-              onDismiss: () => setState(() {
-                _tappedWord = null; _tappedSyllables = null; _tappedPosition = null;
-              }),
+              word:      _popWord!,
+              syllables: _popSyllables!,
+              position:  _popPosition ?? Offset.zero,
+              onDismiss: () => setState(() { _popWord = null; _popSyllables = null; }),
             ),
 
-          _buildTopBar(context),
+          // ── Top bar ─────────────────────────────────────────────────────────
+          _buildTopBar(),
+
+          // ── Bottom status ───────────────────────────────────────────────────
           Positioned(
             bottom: 0, left: 0, right: 0,
-            child: _buildBottomControls(),
+            child: _buildBottomBar(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar() {
     return Positioned(
       top: 0, left: 0, right: 0,
       child: Container(
@@ -543,13 +468,13 @@ InputImage? _buildInputImage(CameraImage image) {
                       SizedBox(width: 4),
                       Text('LIVE AR',
                           style: TextStyle(color: Colors.white, fontSize: 11,
-                              fontWeight: FontWeight.bold, fontFamily: 'OpenDyslexic')),
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
                 const Spacer(),
                 IconButton(
-                  icon: Icon(_isFlashOn ? Icons.flash_on : Icons.flash_off,
+                  icon: Icon(_flashOn ? Icons.flash_on : Icons.flash_off,
                       color: Colors.white, size: 28),
                   onPressed: _toggleFlash,
                 ),
@@ -570,7 +495,7 @@ InputImage? _buildInputImage(CameraImage image) {
     );
   }
 
-  Widget _buildBottomControls() {
+  Widget _buildBottomBar() {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -585,23 +510,18 @@ InputImage? _buildInputImage(CameraImage image) {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _textBlocks.isEmpty
+              _displayBlocks.isEmpty
                   ? 'Point at text to begin'
-                  : '${_textBlocks.fold<int>(0, (s, b) => s + b.lines.fold(0, (s2, l) => s2 + l.elements.length))} words detected',
-              style: TextStyle(color: Colors.white.withOpacity(0.8),
-                  fontSize: 12, fontFamily: 'OpenDyslexic'),
+                  : '${_displayBlocks.fold<int>(0, (s, b) => s + b.lines.fold(0, (s2, l) => s2 + l.elements.length))} words detected',
+              style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 12,
+                  fontFamily: 'OpenDyslexic'),
             ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.touch_app, color: Colors.white54, size: 14),
-                const SizedBox(width: 4),
-                Text('Long-press a word for syllable breakdown',
-                    style: TextStyle(color: Colors.white.withOpacity(0.6),
-                        fontSize: 11, fontFamily: 'OpenDyslexic')),
-              ],
-            ),
+            const SizedBox(height: 6),
+            Text('Long-press a word for syllable breakdown',
+                style: TextStyle(
+                    color: Colors.white.withOpacity(0.55), fontSize: 11)),
           ],
         ),
       ),
@@ -622,13 +542,16 @@ InputImage? _buildInputImage(CameraImage image) {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('AR Overlay Settings',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold,
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                       fontFamily: 'OpenDyslexic',
                       color: Theme.of(ctx).colorScheme.onSurface)),
               const SizedBox(height: 16),
               SwitchListTile(
                 title: Text('OpenDyslexic Font',
-                    style: TextStyle(fontFamily: 'OpenDyslexic',
+                    style: TextStyle(
+                        fontFamily: 'OpenDyslexic',
                         color: Theme.of(ctx).colorScheme.onSurface)),
                 value: _useOpenDyslexic,
                 activeColor: _kAccent,
@@ -637,11 +560,10 @@ InputImage? _buildInputImage(CameraImage image) {
                   setState(() => _useOpenDyslexic = v);
                 },
               ),
-              _buildSlider(ctx, setModal, 'Font Size', _fontSize, 12, 36,
+              _slider(ctx, setModal, 'Font Size', _fontSize, 12, 36,
                   (v) { setModal(() => _fontSize = v); setState(() => _fontSize = v); }),
-              _buildSlider(ctx, setModal, 'Overlay Opacity', _overlayOpacity, 0.5, 1.0,
+              _slider(ctx, setModal, 'Overlay Opacity', _overlayOpacity, 0.5, 1.0,
                   (v) { setModal(() => _overlayOpacity = v); setState(() => _overlayOpacity = v); }),
-              const SizedBox(height: 8),
             ],
           ),
         ),
@@ -649,177 +571,198 @@ InputImage? _buildInputImage(CameraImage image) {
     );
   }
 
-  Widget _buildSlider(BuildContext ctx, StateSetter setModal,
-      String label, double value, double min, double max, ValueChanged<double> onChanged) {
+  Widget _slider(BuildContext ctx, StateSetter setModal,
+      String label, double value, double min, double max, ValueChanged<double> cb) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: TextStyle(fontFamily: 'OpenDyslexic',
-                color: Theme.of(ctx).colorScheme.onSurface)),
+            Text(label,
+                style: TextStyle(fontFamily: 'OpenDyslexic',
+                    color: Theme.of(ctx).colorScheme.onSurface)),
             Text(value.toStringAsFixed(1),
-                style: const TextStyle(fontFamily: 'OpenDyslexic',
-                    color: _kPrimary, fontWeight: FontWeight.bold)),
+                style: const TextStyle(
+                    fontFamily: 'OpenDyslexic',
+                    color: _kPrimary,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
-        Slider(value: value, min: min, max: max, activeColor: _kAccent, onChanged: onChanged),
+        Slider(value: value, min: min, max: max, activeColor: _kAccent, onChanged: cb),
       ],
     );
   }
 }
 
-// ── Painter ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// _CoverTransform  –  maps ML Kit bounding boxes → screen pixels
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// CameraPreview renders using BoxFit.cover:
+//   • Uniform scale so the image fills the entire screen.
+//   • The axis that would overflow is cropped symmetrically.
+//
+// ML Kit returns bounding boxes in the ROTATED display space, i.e.:
+//   • If sensorDeg == 90 or 270 → the logical image is (rawH × rawW).
+//   • If sensorDeg == 0  or 180 → the logical image is (rawW × rawH).
+//
+// Transform:
+//   scale = max(screenW / logicalW, screenH / logicalH)
+//   cropX = (logicalW * scale − screenW) / 2
+//   cropY = (logicalH * scale − screenH) / 2
+//   screenX = boxX * scale − cropX
+//   screenY = boxY * scale − cropY
+// ─────────────────────────────────────────────────────────────────────────────
+class _CoverTransform {
+  final double scale;
+  final double cropX;
+  final double cropY;
 
-class _LiveOverlayPainter extends CustomPainter {
-  final List<TextBlock> textBlocks;
-  final Size   imageSize;
+  factory _CoverTransform(Size rawImg, int sensorDeg, Size screen) {
+    final rotated  = sensorDeg == 90 || sensorDeg == 270;
+    final logicalW = rotated ? rawImg.height : rawImg.width;
+    final logicalH = rotated ? rawImg.width  : rawImg.height;
+
+    final sw = screen.width  / logicalW;
+    final sh = screen.height / logicalH;
+    final s  = sw > sh ? sw : sh;
+
+    final cx = (logicalW * s - screen.width)  / 2;
+    final cy = (logicalH * s - screen.height) / 2;
+
+    return _CoverTransform._(s, cx, cy);
+  }
+
+  const _CoverTransform._(this.scale, this.cropX, this.cropY);
+
+  Rect toScreen(Rect box) => Rect.fromLTRB(
+    box.left   * scale - cropX,
+    box.top    * scale - cropY,
+    box.right  * scale - cropX,
+    box.bottom * scale - cropY,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// _ArOverlayPainter
+// ─────────────────────────────────────────────────────────────────────────────
+class _ArOverlayPainter extends CustomPainter {
+  final List<TextBlock> blocks;
+  final Size   rawImageSize;
+  final int    sensorDeg;
   final bool   useOpenDyslexic;
   final double fontSize;
   final double opacity;
-  final int    sensorRotation;
 
-  const _LiveOverlayPainter({
-    required this.textBlocks,
-    required this.imageSize,
+  const _ArOverlayPainter({
+    required this.blocks,
+    required this.rawImageSize,
+    required this.sensorDeg,
     required this.useOpenDyslexic,
     required this.fontSize,
     required this.opacity,
-    required this.sensorRotation,
   });
 
-  /// Transforms a coordinate from image space to rotated screen space
-  Rect _rotateRect(Rect box) {
-    if (sensorRotation == 0 || sensorRotation == 180) {
-      return box;
-    }
-
-    final double imgW = imageSize.width;
-    final double imgH = imageSize.height;
-
-    if (sensorRotation == 90) {
-      // 90° clockwise: (x, y) → (imgH - y, x)
-      final newLeft = imgH - box.bottom;
-      final newTop = box.left;
-      final newRight = imgH - box.top;
-      final newBottom = box.right;
-      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
-    } else if (sensorRotation == 270) {
-      // 270° clockwise: (x, y) → (y, imgW - x)
-      final newLeft = box.top;
-      final newTop = imgW - box.right;
-      final newRight = box.bottom;
-      final newBottom = imgW - box.left;
-      return Rect.fromLTRB(newLeft, newTop, newRight, newBottom);
-    }
-
-    return box;
-  }
-
   @override
-  void paint(Canvas canvas, Size size) {
-    if (imageSize == Size.zero) return;
+  void paint(Canvas canvas, Size screenSize) {
+    if (rawImageSize == Size.zero || blocks.isEmpty) return;
 
-    final bool   rotated = sensorRotation == 90 || sensorRotation == 270;
-    final double imageW  = rotated ? imageSize.height : imageSize.width;
-    final double imageH  = rotated ? imageSize.width  : imageSize.height;
-    final double scaleX  = size.width  / imageW;
-    final double scaleY  = size.height / imageH;
+    final tf = _CoverTransform(rawImageSize, sensorDeg, screenSize);
 
     final bgPaint = Paint()
-      ..color = const Color(0xFFEEEEEE).withOpacity(opacity * 0.9)
+      ..color = const Color(0xFFEEEEEE).withOpacity(opacity * 0.92)
       ..style = PaintingStyle.fill;
 
-    for (final block in textBlocks) {
+    for (final block in blocks) {
       for (final line in block.lines) {
-        final box = line.boundingBox;
-        // Apply rotation transformation to bounding box
-        final rotatedBox = _rotateRect(box);
-        final rect = Rect.fromLTRB(
-          rotatedBox.left  * scaleX, rotatedBox.top    * scaleY,
-          rotatedBox.right * scaleX, rotatedBox.bottom * scaleY,
-        );
-        final lineH = rect.height;
-        final vPad  = useOpenDyslexic ? lineH * 0.22 : 3.0;
+        final lineRect = tf.toScreen(line.boundingBox);
 
-        // Background pill
+        // Skip if outside screen
+        if (lineRect.bottom < 0 || lineRect.top > screenSize.height ||
+            lineRect.right  < 0 || lineRect.left > screenSize.width) continue;
+
+        final lineH = lineRect.height.clamp(8.0, double.infinity);
+        final vPad  = useOpenDyslexic ? lineH * 0.2 : 3.0;
+
+        // Draw background pill for the whole line
         canvas.drawRRect(
-          RRect.fromRectAndRadius(rect.inflate(vPad), const Radius.circular(4)),
+          RRect.fromRectAndRadius(
+              lineRect.inflate(vPad), const Radius.circular(4)),
           bgPaint,
         );
 
         if (line.elements.isNotEmpty) {
-          double x = rect.left + 2;
-          for (final element in line.elements) {
-            final wBox   = element.boundingBox;
-            // Apply rotation transformation to get correct dimensions
-            final rotatedWBox = _rotateRect(Rect.fromLTRB(
-              wBox.left, wBox.top, wBox.right, wBox.bottom,
-            ));
-            final wH     = rotatedWBox.height * scaleY;
-            final target = fontSize.clamp(8.0, wH.clamp(8.0, fontSize + 4));
+          // Draw each word at its own bounding box position
+          for (final el in line.elements) {
+            final elRect = tf.toScreen(el.boundingBox);
+            final elH    = elRect.height.clamp(8.0, double.infinity);
+            final fs     = fontSize.clamp(8.0, elH + 2);
 
             final tp = TextPainter(
               text: TextSpan(
-                text: element.text,
+                text: el.text,
                 style: TextStyle(
                   color:         Colors.black87,
-                  fontSize:      target,
+                  fontSize:      fs,
                   fontFamily:    useOpenDyslexic ? 'OpenDyslexic' : null,
-                  fontWeight:    FontWeight.w500,
+                  fontWeight:    FontWeight.w600,
                   height:        1.0,
-                  letterSpacing: useOpenDyslexic ? 0.5 : 0,
+                  letterSpacing: useOpenDyslexic ? 0.4 : 0,
                 ),
               ),
               textDirection: TextDirection.ltr,
               maxLines: 1,
-            )..layout();
+            )..layout(maxWidth: elRect.width + 20);
 
-            final bgTop = rect.top - vPad;
-            final bgH   = lineH + vPad * 2;
-            tp.paint(canvas, Offset(x, bgTop + (bgH - tp.height) / 2));
-            x += tp.width + (useOpenDyslexic ? 6.0 : 4.0);
+            // Vertically centre within the padded line rect
+            final textY = lineRect.top - vPad +
+                ((lineH + vPad * 2) - tp.height) / 2;
+            tp.paint(canvas, Offset(elRect.left + 1, textY));
           }
         } else {
+          // Fallback: single text block with no per-element info
+          final fs = fontSize.clamp(8.0, lineH);
           final tp = TextPainter(
             text: TextSpan(
               text: line.text,
               style: TextStyle(
                 color:      Colors.black87,
-                fontSize:   lineH.clamp(8.0, fontSize),
+                fontSize:   fs,
                 fontFamily: useOpenDyslexic ? 'OpenDyslexic' : null,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 height:     1.0,
               ),
             ),
             textDirection: TextDirection.ltr,
             maxLines: 1,
-          )..layout();
-          final bgTop = rect.top - 3;
-          final bgH   = lineH + 6;
-          tp.paint(canvas, Offset(rect.left + 2, bgTop + (bgH - tp.height) / 2));
+          )..layout(maxWidth: lineRect.width + 20);
+
+          final textY = lineRect.top - vPad +
+              ((lineH + vPad * 2) - tp.height) / 2;
+          tp.paint(canvas, Offset(lineRect.left + 2, textY));
         }
       }
     }
   }
 
   @override
-  bool shouldRepaint(_LiveOverlayPainter old) =>
-      old.textBlocks    != textBlocks    ||
-      old.imageSize     != imageSize     ||
+  bool shouldRepaint(_ArOverlayPainter old) =>
+      old.blocks         != blocks         ||
+      old.rawImageSize   != rawImageSize   ||
+      old.sensorDeg      != sensorDeg      ||
       old.useOpenDyslexic != useOpenDyslexic ||
-      old.fontSize      != fontSize      ||
-      old.opacity       != opacity       ||
-      old.sensorRotation != sensorRotation;
+      old.fontSize       != fontSize       ||
+      old.opacity        != opacity;
 }
 
-// ── Syllable popup ─────────────────────────────────────────────────────────────
-
+// ─────────────────────────────────────────────────────────────────────────────
+// _SyllablePopup
+// ─────────────────────────────────────────────────────────────────────────────
 class _SyllablePopup extends StatelessWidget {
-  final String word;
+  final String       word;
   final List<String> syllables;
-  final Offset position;
+  final Offset       position;
   final VoidCallback onDismiss;
 
   const _SyllablePopup({
@@ -831,7 +774,7 @@ class _SyllablePopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final s = MediaQuery.of(context).size;
+    final s    = MediaQuery.of(context).size;
     final left = (position.dx - 100).clamp(8.0, s.width  - 216.0);
     final top  = (position.dy - 90 ).clamp(8.0, s.height - 120.0);
 
