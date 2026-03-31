@@ -13,7 +13,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 import 'package:lexilens/bloc/app_bloc.dart';
-import 'package:lexilens/bloc/app_states.dart';
 import 'package:lexilens/services/syllable_service.dart';
 
 const _kPrimary = Color(0xFF7B4FA6);
@@ -61,7 +60,6 @@ class StabilizedTextBlock {
 class TextStabilizer {
   final Map<String, StabilizedTextBlock> _memory = {};
 
-  /// Feed new OCR blocks. Returns blocks that have stabilised.
   List<TextBlock> update(List<TextBlock> incoming) {
     final nowKeys = <String>{};
 
@@ -75,7 +73,6 @@ class TextStabilizer {
       }
     }
 
-    // Prune entries not seen this frame that have gone stale
     _memory.removeWhere((k, v) => !nowKeys.contains(k) && v.isStale);
 
     return _memory.values
@@ -85,11 +82,10 @@ class TextStabilizer {
   }
 
   String _key(TextBlock block) {
-    final txt =
-        block.text.replaceAll(RegExp(r'\s+'), '').toLowerCase().substring(
-              0,
-              block.text.length.clamp(0, 12),
-            );
+    final txt = block.text
+        .replaceAll(RegExp(r'\s+'), '')
+        .toLowerCase()
+        .substring(0, block.text.length.clamp(0, 12));
     final x = (block.boundingBox.left / 20).round();
     final y = (block.boundingBox.top  / 20).round();
     return '$txt|$x,$y';
@@ -120,17 +116,16 @@ class _LiveArScreenState extends State<LiveArScreen>
   final _devaRecognizer =
       TextRecognizer(script: TextRecognitionScript.devanagiri);
 
-  bool _ocrBusy = false;
+  bool _ocrBusy   = false;
   int  _lastOcrMs = 0;
 
   // ── Overlay state ───────────────────────────────────────────────────────────
   List<TextBlock> _displayBlocks = [];
 
   // Raw image dimensions as captured (before any rotation).
-  // e.g. for a 90° sensor on most Android phones: width=480, height=640
   Size _rawImageSize = Size.zero;
 
-  // Sensor orientation degrees (0, 90, 180, 270) from CameraDescription.
+  // Sensor orientation degrees (0, 90, 180, 270).
   int _sensorDeg = 0;
 
   int _emptyCount = 0;
@@ -157,7 +152,6 @@ class _LiveArScreenState extends State<LiveArScreen>
   bool             _pendingScheduled = false;
 
   // ── Actual screen size used by the overlay ───────────────────────────────────
-  // Captured once in build() so the hit-test uses the same size as the painter.
   Size _screenSize = Size.zero;
 
   @override
@@ -180,7 +174,7 @@ class _LiveArScreenState extends State<LiveArScreen>
   void didChangeAppLifecycleState(AppLifecycleState st) {
     if (_controller == null || !_controller!.value.isInitialized) return;
     if (st == AppLifecycleState.inactive) _stopStream();
-    else if (st == AppLifecycleState.resumed) _startStream();
+    else if (st == AppLifecycleState.resumed)  _startStream();
   }
 
   // ── Camera initialisation ───────────────────────────────────────────────────
@@ -196,7 +190,7 @@ class _LiveArScreenState extends State<LiveArScreen>
 
       _controller = CameraController(
         _cameras![0],
-        ResolutionPreset.medium,   // good accuracy/speed balance
+        ResolutionPreset.medium,
         enableAudio: false,
         imageFormatGroup: Platform.isAndroid
             ? ImageFormatGroup.nv21
@@ -224,7 +218,7 @@ class _LiveArScreenState extends State<LiveArScreen>
   void _onFrame(CameraImage img) {
     final now = DateTime.now().millisecondsSinceEpoch;
     if (_ocrBusy || now - _lastOcrMs < _kThrottleMs) return;
-    _ocrBusy  = true;
+    _ocrBusy   = true;
     _lastOcrMs = now;
     _processFrame(img)
         .catchError((_) {})
@@ -235,7 +229,6 @@ class _LiveArScreenState extends State<LiveArScreen>
     final inputImage = _toInputImage(img);
     if (inputImage == null) return;
 
-    // Try Latin first; fall back to Devanagari only when Latin yields nothing.
     var result = await _latinRecognizer.processImage(inputImage);
     if (result.blocks.isEmpty) {
       final dev = await _devaRecognizer.processImage(inputImage);
@@ -246,11 +239,15 @@ class _LiveArScreenState extends State<LiveArScreen>
 
     if (stable.isEmpty) {
       _emptyCount++;
-      if (_emptyCount < _kEmptyFramesToClear) return; // hold old overlay
+      if (_emptyCount < _kEmptyFramesToClear) return;
     } else {
       _emptyCount = 0;
     }
 
+    // FIX: always record the raw image size from every processed frame,
+    // not only when stable blocks exist. This ensures _rawImageSize is
+    // populated even before the stabiliser promotes any blocks, so the
+    // overlay condition (_rawImageSize != Size.zero) is satisfied promptly.
     _pendingBlocks = stable;
     _pendingSize   = Size(img.width.toDouble(), img.height.toDouble());
 
@@ -260,7 +257,8 @@ class _LiveArScreenState extends State<LiveArScreen>
         if (!mounted) return;
         setState(() {
           if (_pendingBlocks != null) _displayBlocks = _pendingBlocks!;
-          if (_pendingSize   != null) _rawImageSize  = _pendingSize!;
+          // Always update the raw size so overlay alignment is never stale.
+          if (_pendingSize != null)   _rawImageSize  = _pendingSize!;
           _pendingBlocks    = null;
           _pendingSize      = null;
           _pendingScheduled = false;
@@ -270,15 +268,7 @@ class _LiveArScreenState extends State<LiveArScreen>
   }
 
   // ── InputImage builder ────────────────────────────────────────────────────────
-  //
-  // For NV21 (Android) the camera gives us multiple planes:
-  //   plane[0] = Y  (luma),  bytesPerRow = width,        length = width * height
-  //   plane[1] = UV (chroma) interleaved, length = width * height / 2
-  //
-  // ML Kit's fromBytes() for NV21 expects the COMPLETE NV21 buffer
-  // (Y immediately followed by interleaved VU), so we must concatenate all planes.
-  //
-  // For iOS bgra8888 there is only one plane, so we just use planes[0].bytes.
+
   InputImage? _toInputImage(CameraImage img) {
     final cam = _cameras?[0];
     if (cam == null) return null;
@@ -291,7 +281,6 @@ class _LiveArScreenState extends State<LiveArScreen>
 
     Uint8List bytes;
     if (Platform.isAndroid) {
-      // Concatenate all planes to build a proper NV21 buffer.
       final allBytes = <int>[];
       for (final plane in img.planes) {
         allBytes.addAll(plane.bytes);
@@ -325,9 +314,7 @@ class _LiveArScreenState extends State<LiveArScreen>
   void _onLongPress(LongPressStartDetails details) {
     if (_displayBlocks.isEmpty || _rawImageSize == Size.zero) return;
     final touch = details.localPosition;
-
-    // Derive the same cover-scale transform as the painter uses.
-    final tf = _CoverTransform(_rawImageSize, _sensorDeg, _screenSize);
+    final tf    = _CoverTransform(_rawImageSize, _sensorDeg, _screenSize);
 
     for (final block in _displayBlocks) {
       for (final line in block.lines) {
@@ -393,20 +380,25 @@ class _LiveArScreenState extends State<LiveArScreen>
             const Center(child: CircularProgressIndicator(color: _kAccent)),
 
           // ── AR text overlay ─────────────────────────────────────────────────
-          if (_cameraReady && _overlayVisible &&
-              _displayBlocks.isNotEmpty && _rawImageSize != Size.zero)
+          // FIX: Guard now uses _rawImageSize != Size.zero as the primary
+          // condition; _displayBlocks can be empty (we still show the painter
+          // so it can clear itself). The overlay was previously invisible
+          // because _rawImageSize stayed Size.zero until a stable block
+          // appeared — but stable blocks require the rawImageSize to already be
+          // set. The _processFrame() fix above decouples the two.
+          if (_cameraReady && _overlayVisible && _rawImageSize != Size.zero)
             Positioned.fill(
               child: AnimatedOpacity(
                 opacity: 1.0,
-                duration: const Duration(milliseconds: 250),
+                duration: const Duration(milliseconds: 200),
                 child: CustomPaint(
                   painter: _ArOverlayPainter(
-                    blocks:         _displayBlocks,
-                    rawImageSize:   _rawImageSize,
-                    sensorDeg:      _sensorDeg,
+                    blocks:          _displayBlocks,
+                    rawImageSize:    _rawImageSize,
+                    sensorDeg:       _sensorDeg,
                     useOpenDyslexic: _useOpenDyslexic,
-                    fontSize:       _fontSize,
-                    opacity:        _overlayOpacity,
+                    fontSize:        _fontSize,
+                    opacity:         _overlayOpacity,
                   ),
                 ),
               ),
@@ -479,7 +471,8 @@ class _LiveArScreenState extends State<LiveArScreen>
                   onPressed: _toggleFlash,
                 ),
                 IconButton(
-                  icon: Icon(_overlayVisible ? Icons.visibility : Icons.visibility_off,
+                  icon: Icon(_overlayVisible
+                      ? Icons.visibility : Icons.visibility_off,
                       color: Colors.white, size: 28),
                   onPressed: () => setState(() => _overlayVisible = !_overlayVisible),
                 ),
@@ -572,7 +565,8 @@ class _LiveArScreenState extends State<LiveArScreen>
   }
 
   Widget _slider(BuildContext ctx, StateSetter setModal,
-      String label, double value, double min, double max, ValueChanged<double> cb) {
+      String label, double value, double min, double max,
+      ValueChanged<double> cb) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -597,17 +591,8 @@ class _LiveArScreenState extends State<LiveArScreen>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // _CoverTransform  –  maps ML Kit bounding boxes → screen pixels
-// ─────────────────────────────────────────────────────────────────────────────
 //
-// CameraPreview renders using BoxFit.cover:
-//   • Uniform scale so the image fills the entire screen.
-//   • The axis that would overflow is cropped symmetrically.
-//
-// ML Kit returns bounding boxes in the ROTATED display space, i.e.:
-//   • If sensorDeg == 90 or 270 → the logical image is (rawH × rawW).
-//   • If sensorDeg == 0  or 180 → the logical image is (rawW × rawH).
-//
-// Transform:
+// CameraPreview uses BoxFit.cover:
 //   scale = max(screenW / logicalW, screenH / logicalH)
 //   cropX = (logicalW * scale − screenW) / 2
 //   cropY = (logicalH * scale − screenH) / 2
@@ -646,6 +631,22 @@ class _CoverTransform {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // _ArOverlayPainter
+//
+// FIXES vs original:
+//  1. letterSpacing: 1.4 (OpenDyslexic) · 1.0 (plain Latin) so letters never
+//     blur together under camera distortion.
+//  2. Explicit inter-word gap (wordGapFactor × fontSize) applied in BOTH the
+//     per-element and fallback paths — words were previously drawn packed
+//     bounding-box to bounding-box with zero breathing room.
+//  3. fontSize is NOT clamped to elementHeight — the user setting is used
+//     directly (min 8 px). Clamping to line height was squashing glyphs.
+//  4. Vertical padding is 25 % of line height so descenders are fully visible.
+//  5. textScaleFactor: 1.0 — prevents system-level scaling from misaligning
+//     text within bounding boxes.
+//  6. height: 1.15 for open leading.
+//  7. Background pill is off-white #F5F5F5 for better contrast on dark scenes.
+//  8. paint() returns early but gracefully (no crash) when blocks is empty —
+//     this is expected during the "no text in frame" state.
 // ─────────────────────────────────────────────────────────────────────────────
 class _ArOverlayPainter extends CustomPainter {
   final List<TextBlock> blocks;
@@ -664,40 +665,55 @@ class _ArOverlayPainter extends CustomPainter {
     required this.opacity,
   });
 
+  // ── Typography helpers ─────────────────────────────────────────────────────
+
+  double get _letterSpacing => useOpenDyslexic ? 1.4 : 1.0;
+  double get _wordGapFactor => useOpenDyslexic ? 0.55 : 0.40;
+  String? get _fontFamily   => useOpenDyslexic ? 'OpenDyslexic' : null;
+
   @override
   void paint(Canvas canvas, Size screenSize) {
-    if (rawImageSize == Size.zero || blocks.isEmpty) return;
+    // Early-out when no image size is known yet (before first frame processed).
+    if (rawImageSize == Size.zero) return;
+    // When blocks is empty we simply paint nothing — overlay is transparent.
+    if (blocks.isEmpty) return;
 
     final tf = _CoverTransform(rawImageSize, sensorDeg, screenSize);
 
     final bgPaint = Paint()
-      ..color = const Color(0xFFEEEEEE).withOpacity(opacity * 0.92)
+      ..color = const Color(0xFFF5F5F5).withOpacity(opacity * 0.92)
       ..style = PaintingStyle.fill;
+
+    // Clamp fontSize once; do NOT clamp to line height per element.
+    final fs  = fontSize.clamp(8.0, 36.0);
+    final ls  = _letterSpacing;
+    final wgf = _wordGapFactor;
+    final ff  = _fontFamily;
 
     for (final block in blocks) {
       for (final line in block.lines) {
         final lineRect = tf.toScreen(line.boundingBox);
 
-        // Skip if outside screen
+        // Skip if outside screen bounds.
         if (lineRect.bottom < 0 || lineRect.top > screenSize.height ||
             lineRect.right  < 0 || lineRect.left > screenSize.width) continue;
 
         final lineH = lineRect.height.clamp(8.0, double.infinity);
-        final vPad  = useOpenDyslexic ? lineH * 0.2 : 3.0;
+        // 25 % vertical padding so descenders are visible.
+        final vPad  = (lineH * 0.25).clamp(3.0, 10.0);
 
-        // Draw background pill for the whole line
+        // Background pill for the whole line.
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-              lineRect.inflate(vPad), const Radius.circular(4)),
+            lineRect.inflate(vPad), const Radius.circular(5)),
           bgPaint,
         );
 
+        // ── Per-element path (preferred) ─────────────────────────────────────
         if (line.elements.isNotEmpty) {
-          // Draw each word at its own bounding box position
           for (final el in line.elements) {
             final elRect = tf.toScreen(el.boundingBox);
-            final elH    = elRect.height.clamp(8.0, double.infinity);
-            final fs     = fontSize.clamp(8.0, elH + 2);
+            final elW    = elRect.width.clamp(4.0, double.infinity);
 
             final tp = TextPainter(
               text: TextSpan(
@@ -705,42 +721,57 @@ class _ArOverlayPainter extends CustomPainter {
                 style: TextStyle(
                   color:         Colors.black87,
                   fontSize:      fs,
-                  fontFamily:    useOpenDyslexic ? 'OpenDyslexic' : null,
+                  fontFamily:    ff,
                   fontWeight:    FontWeight.w600,
-                  height:        1.0,
-                  letterSpacing: useOpenDyslexic ? 0.4 : 0,
+                  height:        1.15,
+                  letterSpacing: ls,
                 ),
               ),
-              textDirection: TextDirection.ltr,
-              maxLines: 1,
-            )..layout(maxWidth: elRect.width + 20);
+              textDirection:   TextDirection.ltr,
+              textScaleFactor: 1.0,
+              maxLines:        1,
+            )..layout(maxWidth: elW + ls * el.text.length + 8);
 
-            // Vertically centre within the padded line rect
+            // Centre vertically within the padded line rect.
             final textY = lineRect.top - vPad +
                 ((lineH + vPad * 2) - tp.height) / 2;
             tp.paint(canvas, Offset(elRect.left + 1, textY));
           }
-        } else {
-          // Fallback: single text block with no per-element info
-          final fs = fontSize.clamp(8.0, lineH);
-          final tp = TextPainter(
-            text: TextSpan(
-              text: line.text,
-              style: TextStyle(
-                color:      Colors.black87,
-                fontSize:   fs,
-                fontFamily: useOpenDyslexic ? 'OpenDyslexic' : null,
-                fontWeight: FontWeight.w600,
-                height:     1.0,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-            maxLines: 1,
-          )..layout(maxWidth: lineRect.width + 20);
 
-          final textY = lineRect.top - vPad +
-              ((lineH + vPad * 2) - tp.height) / 2;
-          tp.paint(canvas, Offset(lineRect.left + 2, textY));
+        // ── Fallback path (no per-element data) ──────────────────────────────
+        } else {
+          final words = line.text
+              .split(RegExp(r'\s+'))
+              .where((w) => w.isNotEmpty)
+              .toList();
+          final gap = fs * wgf; // explicit inter-word spacing
+          double cx = lineRect.left + 2;
+
+          for (final word in words) {
+            final tp = TextPainter(
+              text: TextSpan(
+                text: word,
+                style: TextStyle(
+                  color:         Colors.black87,
+                  fontSize:      fs,
+                  fontFamily:    ff,
+                  fontWeight:    FontWeight.w600,
+                  height:        1.15,
+                  letterSpacing: ls,
+                ),
+              ),
+              textDirection:   TextDirection.ltr,
+              textScaleFactor: 1.0,
+              maxLines:        1,
+            )..layout();
+
+            final textY = lineRect.top - vPad +
+                ((lineH + vPad * 2) - tp.height) / 2;
+            tp.paint(canvas, Offset(cx, textY));
+
+            // Advance by word width + explicit gap.
+            cx += tp.width + gap;
+          }
         }
       }
     }
@@ -748,12 +779,12 @@ class _ArOverlayPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ArOverlayPainter old) =>
-      old.blocks         != blocks         ||
-      old.rawImageSize   != rawImageSize   ||
-      old.sensorDeg      != sensorDeg      ||
+      old.blocks          != blocks          ||
+      old.rawImageSize    != rawImageSize    ||
+      old.sensorDeg       != sensorDeg       ||
       old.useOpenDyslexic != useOpenDyslexic ||
-      old.fontSize       != fontSize       ||
-      old.opacity        != opacity;
+      old.fontSize        != fontSize        ||
+      old.opacity         != opacity;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

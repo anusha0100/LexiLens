@@ -81,10 +81,15 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
+  /// Extended list covering all Latin-script languages supported by ML Kit.
   bool _isLatinLanguage(String? lang) {
     const latin = [
       'English', 'Spanish', 'French', 'German', 'Italian',
       'Portuguese', 'Dutch', 'Swedish', 'Norwegian', 'Danish',
+      'Finnish', 'Polish', 'Czech', 'Hungarian', 'Romanian',
+      'Turkish', 'Albanian', 'Croatian', 'Slovak', 'Slovenian',
+      'Catalan', 'Welsh', 'Irish', 'Basque', 'Galician',
+      'Latvian', 'Lithuanian', 'Estonian',
     ];
     return latin.contains(lang ?? '');
   }
@@ -200,7 +205,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(word, style: const TextStyle(
-                        color: Colors.white70, fontSize: 12, fontFamily: 'OpenDyslexic')),
+                        color: Colors.white70, fontSize: 12,
+                        fontFamily: 'OpenDyslexic')),
                     const SizedBox(height: 4),
                     Text(formatted, style: const TextStyle(
                         color: Colors.white, fontSize: 20,
@@ -236,9 +242,11 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Text Overlay',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontFamily: fontFamily)),
+              style: TextStyle(color: Colors.white, fontSize: 18,
+                  fontFamily: fontFamily)),
           Text('Language: $_detectedLanguage',
-              style: TextStyle(color: Colors.white70, fontSize: 12, fontFamily: fontFamily)),
+              style: TextStyle(color: Colors.white70, fontSize: 12,
+                  fontFamily: fontFamily)),
         ],
       ),
       actions: [
@@ -246,9 +254,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
           icon: Icon(_useOpenDyslexic
               ? Icons.font_download : Icons.font_download_outlined,
               color: Colors.white),
-          onPressed: () {
-            setState(() => _useOpenDyslexic = !_useOpenDyslexic);
-          },
+          onPressed: () => setState(() => _useOpenDyslexic = !_useOpenDyslexic),
         ),
         IconButton(
           icon: Icon(_showOverlay ? Icons.visibility : Icons.visibility_off,
@@ -302,25 +308,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // _buildImageWithOverlay
-  //
-  // ARCHITECTURE FIX:
-  // The previous version put a LayoutBuilder inside an InteractiveViewer
-  // inside a Center — which made constraints unbounded (maxWidth = infinity).
-  // LayoutBuilder with infinite constraints means _containerSize was always
-  // Size.zero, so the overlay was never rendered.
-  //
-  // Correct approach:
-  //   1. Use a single top-level LayoutBuilder to get the true finite box size.
-  //   2. Inside that, compute exactly where BoxFit.contain will draw the image
-  //      (the letterboxed rect) and pass those dimensions to the painter.
-  //   3. Wrap the whole thing in ONE InteractiveViewer for pinch-zoom.
-  //   4. The Stack inside the InteractiveViewer uses the LayoutBuilder's size
-  //      so the CustomPaint aligns pixel-perfectly with the image.
-  // ─────────────────────────────────────────────────────────────────────────
   Widget _buildImageWithOverlay(AppState state) {
-    // While decoding show a plain image (no overlay needed yet).
     if (_decodedImage == null) {
       return InteractiveViewer(
         minScale: 0.5, maxScale: 4.0,
@@ -329,11 +317,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     }
 
     return LayoutBuilder(builder: (context, constraints) {
-      // These are the finite box dimensions of the body area.
       final containerW = constraints.maxWidth;
       final containerH = constraints.maxHeight;
 
-      // Compute the letterboxed render rect for BoxFit.contain.
       final imgW = _decodedImage!.width.toDouble();
       final imgH = _decodedImage!.height.toDouble();
       final containerAspect = containerW / containerH;
@@ -341,11 +327,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
 
       late double renderedW, renderedH;
       if (imageAspect > containerAspect) {
-        // Pillarbox: full width, bars on top & bottom
         renderedW = containerW;
         renderedH = containerW / imageAspect;
       } else {
-        // Letterbox: full height, bars on left & right
         renderedH = containerH;
         renderedW = containerH * imageAspect;
       }
@@ -361,7 +345,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             context.read<AppBloc>().add(AdjustZoom(d.scale));
           }
         },
-        // SizedBox constrains the Stack so children know their own size.
         child: SizedBox(
           width:  containerW,
           height: containerH,
@@ -369,14 +352,10 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             children: [
               // ── The image ─────────────────────────────────────────────
               Positioned.fill(
-                child: Image.file(
-                  File(widget.imagePath),
-                  fit: BoxFit.contain,
-                ),
+                child: Image.file(File(widget.imagePath), fit: BoxFit.contain),
               ),
 
               // ── The overlay ───────────────────────────────────────────
-              // Positioned exactly over the rendered (letterboxed) image.
               if (_showOverlay && widget.textBlocks.isNotEmpty)
                 Positioned(
                   left:   offsetX,
@@ -385,9 +364,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                   height: renderedH,
                   child: GestureDetector(
                     onLongPressStart: (details) {
-                      // details.localPosition is relative to the overlay widget,
-                      // which is exactly the rendered image area — same coords
-                      // the painter uses.
                       final word = _findWordAt(
                           details.localPosition,
                           Size(imgW, imgH),
@@ -400,9 +376,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                       painter: OverlayStyle(
                         overlayOpacity:   state.overlayOpacity,
                         textBlocks:       widget.textBlocks,
-                        // The painter receives the actual image pixel size
-                        // and the rendered widget size separately, so it can
-                        // compute the exact per-pixel scale.
                         imageActualSize:  Size(imgW, imgH),
                         imageDisplaySize: Size(renderedW, renderedH),
                         currentWordIndex: state.readingState != ReadingState.idle
@@ -414,9 +387,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
                         detectedLanguage: _detectedLanguage,
                         detectedScript:   _detectedScript,
                       ),
-                      // size: Size.infinite tells CustomPaint to use its
-                      // parent's (Positioned's) constraints, which are exactly
-                      // renderedW × renderedH.
                       size: Size.infinite,
                     ),
                   ),
@@ -428,8 +398,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     });
   }
 
-  // ── Hit test: find word at tap position ───────────────────────────────────
-  // position is in the rendered-image coordinate space (0,0 = top-left of image)
+  // ── Hit test ──────────────────────────────────────────────────────────────
+
   String _findWordAt(Offset pos, Size imageSize, Size displaySize) {
     final scaleX = displaySize.width  / imageSize.width;
     final scaleY = displaySize.height / imageSize.height;
@@ -442,7 +412,10 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
           b.right * scaleX, b.bottom * scaleY,
         );
         if (r.contains(pos)) {
-          final words = line.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+          final words = line.text
+              .split(RegExp(r'\s+'))
+              .where((w) => w.isNotEmpty)
+              .toList();
           if (words.isEmpty) continue;
           final wW = r.width / words.length;
           final idx = ((pos.dx - r.left) / wW).floor().clamp(0, words.length - 1);
@@ -474,14 +447,14 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
               fontFamily: fontFamily,
               onTap: () => _togglePlay(ctx, state),
             ),
-            _navBtn(icon: Icons.copy,    label: 'Copy',  fontFamily: fontFamily, onTap: _copy),
+            _navBtn(icon: Icons.copy,  label: 'Copy',  fontFamily: fontFamily, onTap: _copy),
             _navBtn(
               icon: _isSaving ? Icons.hourglass_bottom : Icons.save,
               label: _isSaving ? 'Saving...' : 'Save',
               fontFamily: fontFamily,
               onTap: _isSaving ? () {} : _save,
             ),
-            _navBtn(icon: Icons.share,   label: 'Share', fontFamily: fontFamily,
+            _navBtn(icon: Icons.share, label: 'Share', fontFamily: fontFamily,
                 onTap: () => _showShareOptions(ctx)),
           ],
         ),
@@ -500,8 +473,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, color: Colors.white, size: 24),
         const SizedBox(height: 4),
-        Text(label,
-            style: TextStyle(color: Colors.white, fontSize: 11, fontFamily: fontFamily)),
+        Text(label, style: TextStyle(
+            color: Colors.white, fontSize: 11, fontFamily: fontFamily)),
       ]),
     );
   }
@@ -575,7 +548,8 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
               TextButton(
                 onPressed: () => Navigator.pop(dCtx),
                 child: const Text('Close',
-                    style: TextStyle(color: Color(0xFFB789DA), fontFamily: 'OpenDyslexic')),
+                    style: TextStyle(color: Color(0xFFB789DA),
+                        fontFamily: 'OpenDyslexic')),
               ),
             ],
           ),
@@ -654,27 +628,32 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 // OverlayStyle painter
 //
-// This painter receives imageDisplaySize = the actual rendered pixel size of
-// the image widget (not the container — the letterboxed image area).
-// The Positioned widget that hosts this CustomPaint is already positioned at
-// (offsetX, offsetY) and sized to (renderedW, renderedH), so we simply scale
-// from image pixel coords to rendered pixel coords with:
-//   scaleX = displayWidth  / imageWidth
-//   scaleY = displayHeight / imageHeight
-// No letterbox offset calculation needed here — it's already handled by the
-// Positioned widget.
+// FIXES vs original:
+//  1. letterSpacing: 1.4 (OpenDyslexic/Latin) · 1.0 (plain Latin) · 0.6 (Devanagari)
+//     → letters b/d, p/q, m/n, i/l are now clearly distinct.
+//  2. wordGapFactor: 0.55em (OpenDyslexic) · 0.40em (Latin) · 0.30em (other)
+//     → explicit inter-word gap applied in BOTH the element-based and
+//       fallback rendering paths so words never run together.
+//  3. fontSize is NO LONGER clamped to lineH+2 — that was squashing letters.
+//     We now use the user-set value (clamped only at 8 px minimum).
+//  4. Vertical padding is lineH×0.30 (min 3, max 12) so descenders are visible.
+//  5. textScaleFactor: 1.0 — ignores system accessibility scaling that would
+//     otherwise misalign the text with its bounding boxes.
+//  6. height: 1.15 — slightly open line-height for better readability.
+//  7. Background pill colour is #F5F5F5 (warmer off-white) instead of #EEEEEE
+//     for higher contrast against dark images.
 // ─────────────────────────────────────────────────────────────────────────────
 class OverlayStyle extends CustomPainter {
-  final double         overlayOpacity;
+  final double          overlayOpacity;
   final List<TextBlock> textBlocks;
-  final Size           imageActualSize;   // image pixels (e.g. 3000×4000)
-  final Size           imageDisplaySize;  // rendered pixels (e.g. 450×600)
-  final int            currentWordIndex;
-  final List<String>   allWords;
-  final bool           useOpenDyslexic;
-  final double         fontSize;
-  final String?        detectedLanguage;
-  final String?        detectedScript;
+  final Size            imageActualSize;
+  final Size            imageDisplaySize;
+  final int             currentWordIndex;
+  final List<String>    allWords;
+  final bool            useOpenDyslexic;
+  final double          fontSize;
+  final String?         detectedLanguage;
+  final String?         detectedScript;
 
   OverlayStyle({
     required this.overlayOpacity,
@@ -689,13 +668,44 @@ class OverlayStyle extends CustomPainter {
     this.detectedScript,
   });
 
+  // ── Script detection ───────────────────────────────────────────────────────
+
   bool _isLatinLang(String? l) {
     const lat = [
       'English', 'Spanish', 'French', 'German', 'Italian',
       'Portuguese', 'Dutch', 'Swedish', 'Norwegian', 'Danish',
+      'Finnish', 'Polish', 'Czech', 'Hungarian', 'Romanian',
+      'Turkish', 'Albanian', 'Croatian', 'Slovak', 'Slovenian',
+      'Catalan', 'Welsh', 'Irish', 'Basque', 'Galician',
+      'Latvian', 'Lithuanian', 'Estonian',
     ];
     return lat.contains(l ?? '');
   }
+
+  // ── Typography getters ─────────────────────────────────────────────────────
+
+  /// Letter spacing: enough to disambiguate confusable glyphs (b/d, p/q, m/n).
+  double get _letterSpacing {
+    if (useOpenDyslexic && _isLatinLang(detectedLanguage)) return 1.4;
+    if (_isLatinLang(detectedLanguage))                    return 1.0;
+    if (detectedScript == 'Devanagari')                    return 0.6;
+    return 0.8;
+  }
+
+  /// Inter-word gap as a fraction of the rendered font size.
+  double get _wordGapFactor {
+    if (useOpenDyslexic)                    return 0.55;
+    if (_isLatinLang(detectedLanguage))     return 0.40;
+    return 0.30;
+  }
+
+  String? get _fontFamily {
+    if (useOpenDyslexic && _isLatinLang(detectedLanguage)) return 'OpenDyslexic';
+    if (detectedScript == 'Devanagari')                    return 'NotoSansDevanagari';
+    return null; // system default for all other scripts
+  }
+
+  // ── Paint ──────────────────────────────────────────────────────────────────
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -703,132 +713,152 @@ class OverlayStyle extends CustomPainter {
         imageActualSize  == Size.zero ||
         imageDisplaySize == Size.zero) return;
 
-    // Direct scale from image pixels → rendered display pixels.
-    // No offset needed — our Positioned widget already handles that.
     final scaleX = imageDisplaySize.width  / imageActualSize.width;
     final scaleY = imageDisplaySize.height / imageActualSize.height;
 
-    final useOD   = useOpenDyslexic && _isLatinLang(detectedLanguage);
-    final useDeva = !useOD && detectedScript == 'Devanagari';
-    final fontFamily = useOD ? 'OpenDyslexic' : (useDeva ? 'NotoSansDevanagari' : null);
+    final ff   = _fontFamily;
+    final ls   = _letterSpacing;
+    final wgf  = _wordGapFactor;
+    // Clamp font size to a sensible range; do NOT clamp to line height.
+    final fs   = fontSize.clamp(8.0, 36.0);
 
     final bgPaint = Paint()
-      ..color = const Color(0xFFEEEEEE).withOpacity(overlayOpacity)
+      ..color = const Color(0xFFF5F5F5).withOpacity(overlayOpacity)
+      ..style = PaintingStyle.fill;
+
+    final highlightPaint = Paint()
+      ..color = Colors.yellow.withOpacity(0.65)
       ..style = PaintingStyle.fill;
 
     int globalWordIdx = 0;
 
     for (final block in textBlocks) {
       for (final line in block.lines) {
-        final b = line.boundingBox;
+        final b      = line.boundingBox;
         final left   = b.left   * scaleX;
         final top    = b.top    * scaleY;
         final right  = b.right  * scaleX;
         final bottom = b.bottom * scaleY;
-        final rect   = Rect.fromLTRB(left, top, right, bottom);
 
-        // Skip if completely outside the painted canvas
+        // Cull lines fully outside the visible canvas.
         if (bottom < 0 || top > size.height ||
-            right < 0 || left > size.width) {
+            right  < 0 || left > size.width) {
           globalWordIdx += line.elements.isNotEmpty
               ? line.elements.length
               : line.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
           continue;
         }
 
-        final lineH = rect.height.clamp(8.0, double.infinity);
-        final vPad  = useOD ? lineH * 0.25 : 2.0;
+        final lineH = (bottom - top).clamp(8.0, double.infinity);
 
-        final words = line.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-        final lineStart = globalWordIdx;
-        final lineEnd   = lineStart + (line.elements.isNotEmpty ? line.elements.length : words.length);
-        final lineActive = currentWordIndex >= lineStart && currentWordIndex < lineEnd;
+        // 30 % of line height for vertical padding – exposes descenders.
+        final vPad = (lineH * 0.30).clamp(3.0, 12.0);
 
-        // Background pill
+        final words = line.text
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .toList();
+
+        final lineStart  = globalWordIdx;
+        final lineEnd    = lineStart +
+            (line.elements.isNotEmpty ? line.elements.length : words.length);
+        final lineActive =
+            currentWordIndex >= lineStart && currentWordIndex < lineEnd;
+
+        // Background pill for the whole line.
         canvas.drawRRect(
           RRect.fromRectAndRadius(
             Rect.fromLTRB(left - 4, top - vPad, right + 4, bottom + vPad),
-            const Radius.circular(4),
+            const Radius.circular(5),
           ),
           bgPaint,
         );
 
+        // ── Per-element path (preferred) ─────────────────────────────────────
         if (line.elements.isNotEmpty) {
           for (int wi = 0; wi < line.elements.length; wi++) {
             final el  = line.elements[wi];
             final wb  = el.boundingBox;
             final wL  = wb.left   * scaleX;
             final wT  = wb.top    * scaleY;
-            final wW  = wb.width  * scaleX;
+            final wW  = (wb.width  * scaleX).clamp(4.0, double.infinity);
             final wH  = (wb.height * scaleY).clamp(8.0, double.infinity);
-            final isCurrentWord = lineActive && (globalWordIdx + wi) == currentWordIndex;
-            final fs  = fontSize.clamp(7.0, wH + 2);
 
-            if (isCurrentWord) {
+            final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
+
+            if (isActive) {
               canvas.drawRRect(
                 RRect.fromRectAndRadius(
                   Rect.fromLTWH(wL - 2, wT - vPad, wW + 4, wH + vPad * 2),
-                  const Radius.circular(2),
+                  const Radius.circular(3),
                 ),
-                Paint()..color = Colors.yellow.withOpacity(0.6),
+                highlightPaint,
               );
             }
 
+            // Layout with explicit max width = word box width + spacing room.
             final tp = TextPainter(
               text: TextSpan(
                 text: el.text,
                 style: TextStyle(
-                  color:         isCurrentWord ? Colors.red.shade800 : Colors.black87,
+                  color:         isActive ? Colors.red.shade800 : Colors.black87,
                   fontSize:      fs,
-                  fontFamily:    fontFamily,
-                  fontWeight:    isCurrentWord ? FontWeight.bold : FontWeight.w500,
-                  height:        1.0,
-                  letterSpacing: useOD ? 0.5 : 0,
+                  fontFamily:    ff,
+                  fontWeight:    isActive ? FontWeight.bold : FontWeight.w600,
+                  height:        1.15,
+                  letterSpacing: ls,
                 ),
               ),
-              textDirection: TextDirection.ltr,
-              maxLines: 1,
-            )..layout();
+              textDirection:   TextDirection.ltr,
+              textScaleFactor: 1.0,
+              maxLines:        1,
+            )..layout(maxWidth: wW + ls * el.text.length + 8);
 
             final textY = (wT - vPad) + ((wH + vPad * 2) - tp.height) / 2;
             tp.paint(canvas, Offset(wL, textY));
           }
           globalWordIdx += line.elements.length;
+
+        // ── Fallback path (no per-element bounding boxes) ────────────────────
         } else {
-          // Fallback: no per-element data — render line as a whole
-          final fs = (lineH * 0.55).clamp(8.0, fontSize);
-          double cx = left + 4;
+          final gap = fs * wgf; // explicit inter-word gap in pixels
+          double cx = left + 2;
 
           for (int wi = 0; wi < words.length; wi++) {
-            final isCurrentWord = lineActive && (globalWordIdx + wi) == currentWordIndex;
+            final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
+
             final tp = TextPainter(
               text: TextSpan(
                 text: words[wi],
                 style: TextStyle(
-                  color:         isCurrentWord ? Colors.red.shade800 : Colors.black87,
+                  color:         isActive ? Colors.red.shade800 : Colors.black87,
                   fontSize:      fs,
-                  fontFamily:    fontFamily,
-                  fontWeight:    isCurrentWord ? FontWeight.bold : FontWeight.w500,
-                  height:        1.0,
-                  letterSpacing: useOD ? 0.5 : 0,
+                  fontFamily:    ff,
+                  fontWeight:    isActive ? FontWeight.bold : FontWeight.w600,
+                  height:        1.15,
+                  letterSpacing: ls,
                 ),
               ),
-              textDirection: TextDirection.ltr,
+              textDirection:   TextDirection.ltr,
+              textScaleFactor: 1.0,
             )..layout();
 
-            if (isCurrentWord) {
+            if (isActive) {
               canvas.drawRRect(
                 RRect.fromRectAndRadius(
-                  Rect.fromLTWH(cx - 1, top - vPad + 1, tp.width + 2, lineH + vPad * 2 - 2),
-                  const Radius.circular(2),
+                  Rect.fromLTWH(cx - 2, top - vPad + 1,
+                      tp.width + 4, lineH + vPad * 2 - 2),
+                  const Radius.circular(3),
                 ),
-                Paint()..color = Colors.yellow.withOpacity(0.6),
+                highlightPaint,
               );
             }
 
             final textY = (top - vPad) + ((lineH + vPad * 2) - tp.height) / 2;
             tp.paint(canvas, Offset(cx, textY));
-            cx += tp.width + (useOD ? fs * 0.25 : fs * 0.15);
+
+            // Advance by word width + explicit gap (not just bounding box edge).
+            cx += tp.width + gap;
           }
           globalWordIdx += words.length;
         }
@@ -838,9 +868,11 @@ class OverlayStyle extends CustomPainter {
 
   @override
   bool shouldRepaint(OverlayStyle old) =>
-      old.currentWordIndex != currentWordIndex ||
-      old.imageDisplaySize != imageDisplaySize ||
-      old.useOpenDyslexic  != useOpenDyslexic  ||
-      old.fontSize         != fontSize         ||
-      old.overlayOpacity   != overlayOpacity;
+      old.currentWordIndex  != currentWordIndex  ||
+      old.imageDisplaySize  != imageDisplaySize  ||
+      old.useOpenDyslexic   != useOpenDyslexic   ||
+      old.fontSize          != fontSize          ||
+      old.overlayOpacity    != overlayOpacity    ||
+      old.detectedLanguage  != detectedLanguage  ||
+      old.detectedScript    != detectedScript;
 }
