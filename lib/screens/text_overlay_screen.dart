@@ -1,26 +1,23 @@
 // lib/screens/text_overlay_screen.dart
 //
-// FIXES in this revision
-// ──────────────────────
-// 1. Language-gated OpenDyslexic: font is applied ONLY for Latin-script
-//    languages.  Devanagari text always uses NotoSansDevanagari; other
-//    scripts fall back to the system default.  The toggle in the AppBar
-//    is now disabled (greyed out) when the detected script is non-Latin
-//    so users can't accidentally select a font that produces □ boxes.
+// OVERLAY IMPROVEMENTS (this revision)
+// ──────────────────────────────────────
+// 1. Per-word pills: every word gets its own rounded-rect drawn EXACTLY on
+//    the element's OCR bounding box.  No more shared line-level pill that
+//    causes neighbouring words to bleed into each other.
 //
-// 2. Text congestion / word-spacing overhaul in OverlayStyle:
-//    • wordGapFactor raised to 0.65em (OpenDyslexic) / 0.50em (Latin).
-//    • letterSpacing raised to 1.6 (OpenDyslexic) / 1.1 (plain Latin).
-//    • Background pill now inflated 4 px left/right AND vPad top/bottom
-//      (was only top/bottom), so consecutive pills no longer overlap.
-//    • Per-element maxWidth: wW + ls*len + 16 (was +8), preventing
-//      clipping of wide glyphs at high letter-spacing.
-//    • Fallback word-loop cursor resets to `left + 4` at the START of
-//      each line.  Previously it was never reset between lines, causing
-//      words to drift off-screen to the right on multi-line results.
-//    • fontSize is never clamped to lineH – the slider value is used
-//      directly (floor at 8 px only).
-//    • vPad is 30 % of lineH (min 3, max 12) – exposes descenders.
+// 2. Dynamic font sizing: _fitFontSize() reduces the requested fontSize until
+//    the rendered text fits inside the element's width AND height.  Words are
+//    then centred (both axes) within their box.
+//
+// 3. Adaptive letter-spacing for Latin languages: instead of a fixed 1.6/1.1
+//    em gap the painter starts with the preferred spacing and backs off
+//    automatically if the text would still overflow the bounding box.
+//
+// 4. Fallback path (no per-word elements): words are distributed
+//    proportionally by character count instead of uniformly.
+//
+// 5. Language-gated OpenDyslexic font: unchanged – Latin only.
 
 // ignore_for_file: deprecated_member_use
 
@@ -37,14 +34,15 @@ import 'package:lexilens/models/document_model.dart';
 import 'package:lexilens/services/auth_service.dart';
 import 'package:lexilens/services/mongodb_service.dart';
 import 'package:lexilens/services/syllable_service.dart';
+import 'dart:math' show min;
 
 class TextOverlayScreen extends StatefulWidget {
-  final String        imagePath;
+  final String          imagePath;
   final List<TextBlock> textBlocks;
-  final bool          useOpenDyslexic;
-  final double        fontSize;
-  final String?       detectedLanguage;
-  final String?       detectedScript;
+  final bool            useOpenDyslexic;
+  final double          fontSize;
+  final String?         detectedLanguage;
+  final String?         detectedScript;
 
   const TextOverlayScreen({
     super.key,
@@ -73,7 +71,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   late double _fontSize;
   late String _detectedLanguage;
   late String _detectedScript;
-  late bool   _canUseOpenDyslexic; // true only for Latin-script languages
+  late bool   _canUseOpenDyslexic;
 
   // ── Latin-language list (same as OCRService) ──────────────────────────────
   static const _kLatinLanguages = {
@@ -116,15 +114,11 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     super.dispose();
   }
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-
   String get _extractedText =>
       widget.textBlocks.map((b) => b.text).join('\n\n');
 
   List<String> get _allWords =>
       _extractedText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-
-  // ── TTS ───────────────────────────────────────────────────────────────────
 
   void _togglePlay(BuildContext ctx, AppState s) {
     if (s.readingState == ReadingState.playing) {
@@ -140,8 +134,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   void _stopReading(BuildContext ctx) =>
       ctx.read<AppBloc>().add(StopTextToSpeech());
 
-  // ── Clipboard ─────────────────────────────────────────────────────────────
-
   void _copy() {
     Clipboard.setData(ClipboardData(text: _extractedText));
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -150,8 +142,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       duration: Duration(seconds: 2),
     ));
   }
-
-  // ── Save ──────────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
     if (_isSaving) return;
@@ -197,8 +187,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       if (mounted) setState(() => _isSaving = false);
     }
   }
-
-  // ── Syllable popup ─────────────────────────────────────────────────────────
 
   void _showSyllableBreakdown(String word, Offset globalPos) {
     final syllables = _syllableService.breakIntoSyllables(word);
@@ -246,8 +234,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     );
   }
 
-  // ── AppBar ────────────────────────────────────────────────────────────────
-
   AppBar _buildAppBar() {
     final fontFamily =
         _detectedScript == 'Devanagari' ? 'NotoSansDevanagari' : 'OpenDyslexic';
@@ -267,16 +253,13 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
         ],
       ),
       actions: [
-        // Font toggle: shown but disabled for non-Latin scripts.
         Tooltip(
           message: _canUseOpenDyslexic
               ? 'Toggle OpenDyslexic font'
               : 'OpenDyslexic is for Latin scripts only',
           child: IconButton(
             icon: Icon(
-              _useOpenDyslexic
-                  ? Icons.font_download
-                  : Icons.font_download_outlined,
+              _useOpenDyslexic ? Icons.font_download : Icons.font_download_outlined,
               color: _canUseOpenDyslexic ? Colors.white : Colors.white38,
             ),
             onPressed: _canUseOpenDyslexic
@@ -297,8 +280,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -318,7 +299,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 
   Widget _buildLanguageBanner() {
-    // Show banner only when OpenDyslexic is unavailable for the detected language.
     if (_canUseOpenDyslexic) return const SizedBox.shrink();
     return Container(
       width: double.infinity,
@@ -417,33 +397,44 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
     });
   }
 
-  // ── Hit test ──────────────────────────────────────────────────────────────
-
   String _findWordAt(Offset pos, Size imageSize, Size displaySize) {
     final scaleX = displaySize.width  / imageSize.width;
     final scaleY = displaySize.height / imageSize.height;
 
     for (final block in widget.textBlocks) {
       for (final line in block.lines) {
-        final b = line.boundingBox;
-        final r = Rect.fromLTRB(
-          b.left * scaleX, b.top * scaleY,
-          b.right * scaleX, b.bottom * scaleY,
-        );
-        if (r.contains(pos)) {
-          final words = line.text
-              .split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-          if (words.isEmpty) continue;
-          final wW  = r.width / words.length;
-          final idx = ((pos.dx - r.left) / wW).floor().clamp(0, words.length - 1);
-          return words[idx].replaceAll(RegExp(r'[^\w]'), '');
+        // Prefer per-element hit test (accurate).
+        for (final el in line.elements) {
+          final eb = el.boundingBox;
+          final r = Rect.fromLTRB(
+            eb.left * scaleX, eb.top * scaleY,
+            eb.right * scaleX, eb.bottom * scaleY,
+          );
+          if (r.contains(pos)) {
+            return el.text.replaceAll(RegExp(r'[^\w]'), '');
+          }
+        }
+        // Fallback: uniform split across line bbox.
+        if (line.elements.isEmpty) {
+          final b = line.boundingBox;
+          final r = Rect.fromLTRB(
+            b.left * scaleX, b.top * scaleY,
+            b.right * scaleX, b.bottom * scaleY,
+          );
+          if (r.contains(pos)) {
+            final words = line.text
+                .split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+            if (words.isEmpty) continue;
+            final wW  = r.width / words.length;
+            final idx = ((pos.dx - r.left) / wW)
+                .floor().clamp(0, words.length - 1);
+            return words[idx].replaceAll(RegExp(r'[^\w]'), '');
+          }
         }
       }
     }
     return '';
   }
-
-  // ── Bottom nav ────────────────────────────────────────────────────────────
 
   Widget _buildBottomBar(BuildContext ctx, AppState state) {
     final fontFamily =
@@ -495,8 +486,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       ]),
     );
   }
-
-  // ── Settings dialog ───────────────────────────────────────────────────────
 
   void _showSettingsDialog(BuildContext context) {
     showDialog(
@@ -583,8 +572,6 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
       ),
     );
   }
-
-  // ── Share options ─────────────────────────────────────────────────────────
 
   void _showShareOptions(BuildContext ctx) {
     showDialog(
@@ -676,7 +663,7 @@ class OverlayStyle extends CustomPainter {
   final String?         detectedLanguage;
   final String?         detectedScript;
 
-  OverlayStyle({
+  const OverlayStyle({
     required this.overlayOpacity,
     required this.textBlocks,
     required this.imageActualSize,
@@ -700,26 +687,73 @@ class OverlayStyle extends CustomPainter {
   };
 
   bool get _isLatin => _kLatin.contains(detectedLanguage ?? '');
-  bool get _isDevanagari => detectedScript == 'Devanagari';
+  bool get _isHindi {
+    final lang = (detectedLanguage ?? '').toLowerCase();
+    return lang.contains('hindi') || lang.startsWith('hi') ||
+        detectedScript?.toLowerCase() == 'devanagari';
+  }
+
+  bool get _isDevanagari => detectedScript?.toLowerCase() == 'devanagari';
 
   // ── Typography ─────────────────────────────────────────────────────────────
 
-  double get _letterSpacing {
-    if (useOpenDyslexic && _isLatin) return 1.6;
-    if (_isLatin)                    return 1.1;
-    if (_isDevanagari)               return 0.6;
-    return 0.8;
+  double get _preferredLetterSpacing {
+    if (useOpenDyslexic && _isLatin) return 1.2;
+    if (_isLatin)                    return 0.8;
+    if (_isDevanagari || _isHindi)  return 0.5;
+    return 0.6;
   }
 
   double get _wordGapFactor {
-    if (useOpenDyslexic && _isLatin) return 0.65;
-    if (_isLatin)                    return 0.50;
-    return 0.30;
+    if (useOpenDyslexic && _isLatin) return 0.50;
+    if (_isLatin)                    return 0.40;
+    if (_isDevanagari || _isHindi)  return 0.35;
+    return 0.25;
+  }
+
+  // Returns the largest (fontSize, letterSpacing) pair that fits text in maxW×maxH.
+  ({double fs, double ls}) _fitFontSize(
+      String text, double initialFs, double maxW, double maxH) {
+    double fs = min(initialFs, maxH * 0.82).clamp(6.0, 72.0);
+    double ls = _preferredLetterSpacing;
+
+    for (int attempt = 0; attempt < 8; attempt++) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize:      fs,
+            fontFamily:    _fontFamily,
+            letterSpacing: ls,
+            height:        1.0,
+          ),
+        ),
+        textDirection:   TextDirection.ltr,
+        textScaleFactor: 1.0,
+        maxLines:        1,
+      )..layout();
+
+      if (tp.width <= maxW + 1) break;
+
+      // 1. Reduce letter-spacing first (cheaper, keeps font readable).
+      if (ls > 0.1) {
+        ls = (ls * 0.7).clamp(0.0, ls);
+        continue;
+      }
+
+      // 2. Then scale font size down proportionally.
+      final ratio = maxW / tp.width;
+      final next  = (fs * ratio * 0.94).clamp(6.0, fs - 0.5);
+      if (next >= fs) break; // can't shrink further
+      fs = next;
+    }
+
+    return (fs: fs, ls: ls);
   }
 
   String? get _fontFamily {
     if (useOpenDyslexic && _isLatin) return 'OpenDyslexic';
-    if (_isDevanagari)               return 'NotoSansDevanagari';
+    if (_isHindi || _isDevanagari)    return 'NotoSansDevanagari';
     return null; // system default for all other scripts
   }
 
@@ -729,13 +763,14 @@ class OverlayStyle extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (textBlocks.isEmpty ||
         imageActualSize  == Size.zero ||
-        imageDisplaySize == Size.zero) return;
+        imageDisplaySize == Size.zero) {
+      return;
+    }
 
     final scaleX = imageDisplaySize.width  / imageActualSize.width;
     final scaleY = imageDisplaySize.height / imageActualSize.height;
 
     final ff  = _fontFamily;
-    final ls  = _letterSpacing;
     final wgf = _wordGapFactor;
     final fs  = fontSize.clamp(8.0, 36.0);
 
@@ -765,29 +800,20 @@ class OverlayStyle extends CustomPainter {
         }
 
         final lineH = (bottom - top).clamp(8.0, double.infinity);
-        // 30 % vertical padding – exposes descenders.
-        final vPad  = (lineH * 0.30).clamp(3.0, 12.0);
-
-        final words    = line.text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+        final words = line.text
+            .split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
         final lineStart = globalWordIdx;
         final lineEnd   = lineStart +
             (line.elements.isNotEmpty ? line.elements.length : words.length);
         final lineActive =
             currentWordIndex >= lineStart && currentWordIndex < lineEnd;
 
-        // Background pill: inflated 4 px left/right AND vPad top/bottom.
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTRB(left - 4, top - vPad, right + 4, bottom + vPad),
-            const Radius.circular(5),
-          ),
-          bgPaint,
-        );
-
-        // ── Per-element path (preferred) ─────────────────────────────────────
+        // ── Per-element path: use ML Kit per-word bounding boxes ─────────────
         if (line.elements.isNotEmpty) {
           for (int wi = 0; wi < line.elements.length; wi++) {
             final el = line.elements[wi];
+            if (el.text.trim().isEmpty) { globalWordIdx++; continue; }  // NEW
+
             final wb = el.boundingBox;
             final wL = wb.left   * scaleX;
             final wT = wb.top    * scaleY;
@@ -796,76 +822,96 @@ class OverlayStyle extends CustomPainter {
 
             final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
 
-            if (isActive) {
-              canvas.drawRRect(
-                RRect.fromRectAndRadius(
-                  Rect.fromLTWH(wL - 2, wT - vPad, wW + 4, wH + vPad * 2),
-                  const Radius.circular(3),
-                ),
-                highlightPaint,
-              );
-            }
+            // Pill exactly on the OCR word bounding box.
+            canvas.drawRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromLTWH(wL, wT, wW, wH),          // exact box, no inflation
+                const Radius.circular(4),
+              ),
+              isActive ? highlightPaint : bgPaint,       // combined: no separate highlight draw
+            );
+
+            final fitResult = _fitFontSize(el.text, fs, wW, wH);
+            final effFs = fitResult.fs;
+            final effLs = fitResult.ls;
 
             final tp = TextPainter(
               text: TextSpan(
                 text: el.text,
                 style: TextStyle(
                   color:         isActive ? Colors.red.shade800 : Colors.black87,
-                  fontSize:      fs,
+                  fontSize:      effFs,                  // was: fs
                   fontFamily:    ff,
                   fontWeight:    isActive ? FontWeight.bold : FontWeight.w600,
-                  height:        1.15,
-                  letterSpacing: ls,
+                  height:        1.0,                    // was: 1.15
+                  letterSpacing: effLs,                  // was: ls (fixed)
                 ),
               ),
               textDirection:   TextDirection.ltr,
               textScaleFactor: 1.0,
               maxLines:        1,
-            )..layout(maxWidth: wW + ls * el.text.length + 16);
+            )..layout(maxWidth: wW + 2);                 // was: wW + ls * el.text.length + 16
 
-            tp.paint(canvas, Offset(wL, (wT - vPad) + ((wH + vPad * 2) - tp.height) / 2));
+            // Centre text inside the pill.
+            final textX = wL + ((wW - tp.width)  / 2).clamp(0.0, double.infinity);
+            final textY = wT + ((wH - tp.height) / 2).clamp(0.0, double.infinity);
+            tp.paint(canvas, Offset(textX, textY));      // was: fixed vPad-offset formula
           }
           globalWordIdx += line.elements.length;
+        } else if (words.isNotEmpty) {
+          final totalChars = words.fold<int>(0, (s, w) => s + w.length);  // NEW
+          final lineW      = (right - left).clamp(1.0, double.infinity);  // NEW
+          final gap        = fs * wgf;
+          final totalGap   = gap * (words.length - 1).clamp(0, double.maxFinite);  // NEW
+          final textW      = (lineW - totalGap).clamp(1.0, double.infinity);        // NEW
 
-        // ── Fallback path ────────────────────────────────────────────────────
-        } else {
-          final gap = fs * wgf;
-          // IMPORTANT: reset cursor to the start of THIS line, not carry over.
-          double cx = left + 4;
+          double cx = left;                               // was: left + 4
 
           for (int wi = 0; wi < words.length; wi++) {
+            final word    = words[wi];
+            final propFrac = totalChars > 0             // NEW: proportional width
+                ? word.length / totalChars
+                : 1.0 / words.length;
+            final wW = (propFrac * textW).clamp(4.0, double.infinity);   // NEW
+
             final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
+
+            canvas.drawRRect(                            // NEW: draw pill first
+              RRect.fromRectAndRadius(
+                Rect.fromLTWH(cx, top, wW, lineH),
+                const Radius.circular(4),
+              ),
+              isActive ? highlightPaint : bgPaint,
+            );
+
+            final fitResult = _fitFontSize(word, fs, wW, lineH);
+            final effFs = fitResult.fs;
+            final effLs = fitResult.ls;
 
             final tp = TextPainter(
               text: TextSpan(
-                text: words[wi],
+                text: word,                              // was: words[wi]
                 style: TextStyle(
                   color:         isActive ? Colors.red.shade800 : Colors.black87,
-                  fontSize:      fs,
+                  fontSize:      effFs,                  // was: fs
                   fontFamily:    ff,
                   fontWeight:    isActive ? FontWeight.bold : FontWeight.w600,
-                  height:        1.15,
-                  letterSpacing: ls,
+                  height:        1.0,                    // was: 1.15
+                  letterSpacing: effLs,                  // was: ls (fixed)
                 ),
               ),
               textDirection:   TextDirection.ltr,
               textScaleFactor: 1.0,
-            )..layout();
+              maxLines: 1,                               // NEW
+            )..layout(maxWidth: wW + 2);                 // was: .layout() with no maxWidth
 
-            if (isActive) {
-              canvas.drawRRect(
-                RRect.fromRectAndRadius(
-                  Rect.fromLTWH(cx - 2, top - vPad + 1,
-                      tp.width + 4, lineH + vPad * 2 - 2),
-                  const Radius.circular(3),
-                ),
-                highlightPaint,
-              );
-            }
+            // (no separate isActive highlight block — removed)
 
-            tp.paint(canvas,
-                Offset(cx, (top - vPad) + ((lineH + vPad * 2) - tp.height) / 2));
-            cx += tp.width + gap;
+            final textX = cx + ((wW - tp.width)  / 2).clamp(0.0, double.infinity);  // NEW
+            final textY = top + ((lineH - tp.height) / 2).clamp(0.0, double.infinity); // NEW
+            tp.paint(canvas, Offset(textX, textY));
+
+            cx += wW + gap;                              // was: cx += tp.width + gap
           }
           globalWordIdx += words.length;
         }
@@ -883,3 +929,4 @@ class OverlayStyle extends CustomPainter {
       old.detectedLanguage  != detectedLanguage  ||
       old.detectedScript    != detectedScript;
 }
+
