@@ -663,10 +663,10 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Extra vertical padding for Devanagari pills (fraction of line height).
-const double _kDevaPad = 0.30;                           // NEW constant
+const double _kDevaPad = 0.25;                           // NEW constant
 
 // Probe font size used only to measure relative word widths for Devanagari.
-const double _kDevaProbeFs = 14.0;                       // NEW constant
+const double _kDevaProbeFs = 20.0;                       // NEW constant
 
 class OverlayStyle extends CustomPainter {
   final double          overlayOpacity;
@@ -816,13 +816,27 @@ class OverlayStyle extends CustomPainter {
     final wgf = _wordGapFactor;
     final fs  = fontSize.clamp(8.0, 36.0);
 
+    // Fill paint: light-purple tint visible on BOTH white paper and dark
+    // backgrounds. The previous near-white was invisible on white paper scans.
     final bgPaint = Paint()
-      ..color = const Color(0xFFF5F5F5).withOpacity(overlayOpacity)
+      ..color = const Color(0xFFDFB8F8).withOpacity(overlayOpacity)
       ..style = PaintingStyle.fill;
 
+    // Active word highlight in yellow.
     final highlightPaint = Paint()
-      ..color = Colors.yellow.withOpacity(0.65)
+      ..color = Colors.yellow.withOpacity(0.75)
       ..style = PaintingStyle.fill;
+
+    // Regular purple border and active orange border.
+    final borderPaint = Paint()
+      ..color = const Color(0xFFB789DA).withOpacity((overlayOpacity * 0.6).clamp(0.0, 1.0))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final highlightBorderPaint = Paint()
+      ..color = Colors.orange.withOpacity(0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
 
     int globalWordIdx = 0;
 
@@ -867,13 +881,13 @@ class OverlayStyle extends CustomPainter {
             final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
 
             // Pill exactly on the OCR word bounding box (adjusted for Devanagari).
-            canvas.drawRRect(
-              RRect.fromRectAndRadius(
-                Rect.fromLTWH(wL, wT2, wW, wH),
-                const Radius.circular(4),
-              ),
-              isActive ? highlightPaint : bgPaint,       // combined highlight draw
+            final pillRect = RRect.fromRectAndRadius(
+              Rect.fromLTWH(wL, wT2, wW, wH),
+              const Radius.circular(4),
             );
+            canvas.drawRRect(pillRect, isActive ? highlightPaint : bgPaint);
+            canvas.drawRRect(pillRect,
+                isActive ? highlightBorderPaint : borderPaint);
 
             final fitResult = _fitFontSize(el.text, fs, wW, wH);
             final effFs = fitResult.fs;
@@ -887,7 +901,7 @@ class OverlayStyle extends CustomPainter {
                   fontSize:      effFs,                  // was: fs
                   fontFamily:    ff,
                   fontWeight:    isActive ? FontWeight.bold : FontWeight.w600,
-                  height:        1.0,                    // was: 1.15
+                  height:        _textHeight,            // was: 1.0
                   letterSpacing: effLs,                  // was: ls (fixed)
                 ),
               ),
@@ -898,70 +912,76 @@ class OverlayStyle extends CustomPainter {
 
             // Centre text inside the pill.
             final textX = wL + ((wW - tp.width)  / 2).clamp(0.0, double.infinity);
-            final textY = wT + ((wH - tp.height) / 2).clamp(0.0, double.infinity);
+            final textY = wT2 + ((wH - tp.height) / 2).clamp(0.0, double.infinity);
             tp.paint(canvas, Offset(textX, textY));      // was: fixed vPad-offset formula
           }
           globalWordIdx += line.elements.length;
         } else if (words.isNotEmpty) {
-          final measuredWordWidths = _isDevanagari ? _measureWords(words) : <double>[];
-          final totalChars = words.fold<int>(0, (s, w) => s + w.length);  // NEW
-          final lineW      = (right - left).clamp(1.0, double.infinity);  // NEW
-          final gap        = fs * wgf;
-          final totalGap   = gap * (words.length - 1).clamp(0, double.maxFinite);  // NEW
-          final textW      = (lineW - totalGap).clamp(1.0, double.infinity);        // NEW
+          final lineW    = (right - left).clamp(1.0, double.infinity);
+          final gap      = fs * wgf;
+          final totalGap = gap * (words.length - 1).clamp(0, double.maxFinite);
+          final textW    = (lineW - totalGap).clamp(1.0, double.infinity);
 
-          final pillH  = _isDevanagari ? lineH * (1.0 + _kDevaPad) : lineH;
+          final pillH   = _isDevanagari ? lineH * (1.0 + _kDevaPad) : lineH;
           final pillTop = _isDevanagari ? top - (pillH - lineH) / 2 : top;
 
-          double cx = left;                               // was: left + 4
+          late final List<double> wordWidths;
+          if (_isDevanagari && words.length > 1) {
+            final measured     = _measureWords(words);
+            final totalNatural = measured.fold(0.0, (s, w) => s + w);
+            wordWidths = totalNatural > 0
+                ? measured.map((w) => (w / totalNatural) * textW).toList()
+                : List.filled(words.length, textW / words.length);
+          } else {
+            final totalChars = words.fold<int>(0, (s, w) => s + w.length);
+            wordWidths = words.map((w) {
+              final frac = totalChars > 0 ? w.length / totalChars : 1.0 / words.length;
+              return (frac * textW).clamp(4.0, double.infinity);
+            }).toList();
+          }
+
+          double cx = left;
 
           for (int wi = 0; wi < words.length; wi++) {
-            final word    = words[wi];
-            final propFrac = totalChars > 0             // NEW: proportional width
-                ? word.length / totalChars
-                : 1.0 / words.length;
-            final wW = _isDevanagari
-                ? measuredWordWidths[wi].clamp(4.0, double.infinity)
-                : (propFrac * textW).clamp(4.0, double.infinity);   // NEW
+            final word = words[wi];
+            final wW   = wordWidths[wi].clamp(4.0, double.infinity);
 
             final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
 
-            canvas.drawRRect(                            // NEW: draw pill first
-              RRect.fromRectAndRadius(
-                Rect.fromLTWH(cx, pillTop, wW, pillH),
-                const Radius.circular(4),
-              ),
-              isActive ? highlightPaint : bgPaint,
+            final pillRect2 = RRect.fromRectAndRadius(
+              Rect.fromLTWH(cx, pillTop, wW, pillH),
+              const Radius.circular(4),
             );
+            canvas.drawRRect(pillRect2, isActive ? highlightPaint : bgPaint);
+            canvas.drawRRect(pillRect2,
+                isActive ? highlightBorderPaint : borderPaint);
 
-            final fitResult = _fitFontSize(word, fs, wW, lineH);
+            final fitResult = _fitFontSize(word, fs, wW, pillH);
             final effFs = fitResult.fs;
             final effLs = fitResult.ls;
 
             final tp = TextPainter(
               text: TextSpan(
-                text: word,                              // was: words[wi]
+                text: word,
                 style: TextStyle(
                   color:         isActive ? Colors.red.shade800 : Colors.black87,
-                  fontSize:      effFs,                  // was: fs
+                  fontSize:      effFs,
                   fontFamily:    ff,
                   fontWeight:    isActive ? FontWeight.bold : FontWeight.w600,
-                  height:        1.0,                    // was: 1.15
-                  letterSpacing: effLs,                  // was: ls (fixed)
+                  height:        _textHeight,
+                  letterSpacing: effLs,
                 ),
               ),
               textDirection:   TextDirection.ltr,
               textScaleFactor: 1.0,
-              maxLines: 1,                               // NEW
-            )..layout(maxWidth: wW + 2);                 // was: .layout() with no maxWidth
+              maxLines:        1,
+            )..layout(maxWidth: wW + 2);
 
-            // (no separate isActive highlight block — removed)
-
-            final textX = cx + ((wW - tp.width)  / 2).clamp(0.0, double.infinity);  // NEW
-            final textY = pillTop + ((pillH - tp.height) / 2).clamp(0.0, double.infinity); // NEW
+            final textX = cx + ((wW - tp.width) / 2).clamp(0.0, double.infinity);
+            final textY = pillTop + ((pillH - tp.height) / 2).clamp(0.0, double.infinity);
             tp.paint(canvas, Offset(textX, textY));
 
-            cx += wW + gap;                              // was: cx += tp.width + gap
+            cx += wW + gap;
           }
           globalWordIdx += words.length;
         }
