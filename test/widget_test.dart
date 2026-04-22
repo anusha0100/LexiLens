@@ -134,7 +134,8 @@ void main() {
   // ═══════════════════════════════════════════════════════════════════════════
 
   group('AppState defaults', () {
-    // AppState() uses all default parameter values — this is the initial state.
+    // AppState() uses all default parameter values
+    // this is the initial state.
     const state = AppState();
 
     test('initial state has empty recentDocuments', () {

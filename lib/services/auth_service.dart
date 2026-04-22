@@ -13,9 +13,6 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final MongoDBService _mongoService = MongoDBService();
-  String? _verificationId;
-  String? _pendingEmail;
-  String? _pendingPassword;
 
   User? get currentUser => _auth.currentUser;
   bool get isLoggedIn => currentUser != null;
@@ -91,17 +88,12 @@ class AuthService {
     }
   }
 
-  /// Seeds the typed UserPreferences document and AppSetting defaults for a
-  /// newly registered user by calling POST /api/settings/seed-defaults/:userId.
-  ///
-  /// This satisfies SDS process 5.1 (Display Settings) which requires that new
-  /// users have a well-defined starting configuration, and closes the gap noted
-  /// in the SDS review — previously no defaults were seeded on registration.
   Future<void> _seedDefaultPreferences(String userId) async {
     try {
       final response = await http
           .post(
-            Uri.parse('${MongoDBService.baseUrl}/settings/seed-defaults/$userId'),
+            Uri.parse(
+                '${MongoDBService.baseUrl}/settings/seed-defaults/$userId'),
             headers: {
               'Content-Type': 'application/json',
               if (_mongoService.authToken.isNotEmpty)
@@ -113,97 +105,39 @@ class AuthService {
       if (response.statusCode == 200) {
         print('✅ Default preferences seeded for $userId');
       } else {
-        print('⚠️ seed-defaults returned ${response.statusCode}: ${response.body}');
+        print(
+            '⚠️ seed-defaults returned ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      // Non-fatal: the app still works; preferences fall back to client defaults.
       print('⚠️ Could not seed default preferences: $e');
     }
   }
 
-  // Sign up with email and password
+  // ── Sign up: creates the Firebase account immediately so the user exists
+  // before reaching PhoneAuthScreen. Profile data is seeded straight away.
   Future<Map<String, dynamic>> signUpWithEmail({
     required String email,
     required String password,
   }) async {
     try {
-      _pendingEmail = email;
-      _pendingPassword = password;
-
-      return {
-        'success': true,
-        'message': 'Email stored. Proceed to phone verification.',
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'message': e.toString(),
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> verifyPhoneNumber({
-    required String phoneNumber,
-  }) async {
-    try {
-      _verificationId =
-          'fake_verification_${DateTime.now().millisecondsSinceEpoch}';
-
-      return {
-        'success': true,
-        'verificationId': _verificationId,
-        'message': 'Use OTP: 1234',
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'message': e.toString(),
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> verifyOTP({
-    required String otp,
-    required String verificationId,
-  }) async {
-    try {
-      if (otp != '1234') {
-        return {
-          'success': false,
-          'message': 'Invalid OTP. Please use 1234',
-        };
-      }
-
-      if (_pendingEmail == null || _pendingPassword == null) {
-        return {
-          'success': false,
-          'message': 'No pending registration found',
-        };
-      }
-
       UserCredential userCredential =
           await _auth.createUserWithEmailAndPassword(
-        email: _pendingEmail!,
-        password: _pendingPassword!,
+        email: email,
+        password: password,
       );
 
       final token = await userCredential.user?.getIdToken();
       if (token != null && userCredential.user != null) {
-        await _createSession(userCredential.user!.uid, token);
-        await _saveUserProfile(userCredential.user!.uid, _pendingEmail!);
-
-        // Seed typed default preferences for the new user (SDS §5.1 / D2).
-        await _seedDefaultPreferences(userCredential.user!.uid);
+        final uid = userCredential.user!.uid;
+        await _createSession(uid, token);
+        await _saveUserProfile(uid, email);
+        await _seedDefaultPreferences(uid);
       }
-
-      _pendingEmail = null;
-      _pendingPassword = null;
-      _verificationId = null;
 
       return {
         'success': true,
         'user': userCredential.user,
-        'message': 'Registration successful',
+        'message': 'Account created. Please add your phone number.',
       };
     } on FirebaseAuthException catch (e) {
       String message = 'Registration failed';
@@ -216,7 +150,7 @@ class AuthService {
           message = 'Invalid email address';
           break;
         case 'weak-password':
-          message = 'Password is too weak';
+          message = 'Password must be at least 6 characters';
           break;
         default:
           message = e.message ?? 'An error occurred';
@@ -247,6 +181,7 @@ class AuthService {
 
       if (token != null && userCredential.user != null) {
         await _createSession(userCredential.user!.uid, token);
+        // Refresh profile data on every login so email is always up-to-date.
         await _saveUserProfile(userCredential.user!.uid, email);
       }
 
@@ -297,9 +232,6 @@ class AuthService {
         }
       }
       await _auth.signOut();
-      _pendingEmail = null;
-      _pendingPassword = null;
-      _verificationId = null;
       _mongoService.setAuthToken('');
     } catch (e) {
       print('Error during logout: $e');
@@ -390,10 +322,7 @@ class AuthService {
 
       final userId = currentUser!.uid;
 
-      print('Starting account deletion for user: $userId');
-
       if (password != null && password.isNotEmpty) {
-        print('Re-authenticating user...');
         final reauthResult =
             await reauthenticateWithPassword(password: password);
         if (!reauthResult['success']) return reauthResult;
@@ -404,7 +333,6 @@ class AuthService {
         _mongoService.setAuthToken(token);
       }
 
-      print('Deleting backend data...');
       try {
         final response = await http
             .delete(
@@ -417,57 +345,43 @@ class AuthService {
             )
             .timeout(const Duration(seconds: 30));
 
-        print('Backend response status: ${response.statusCode}');
         if (response.statusCode != 200) {
-          print('⚠️ Continuing with Firebase deletion despite backend error...');
-        } else {
-          final responseData = jsonDecode(response.body);
-          print('✅ Backend data deleted: ${responseData['details']}');
+          print(
+              '⚠️ Continuing with Firebase deletion despite backend error...');
         }
       } catch (e) {
-        print('❌ Backend deletion error: $e');
-        print('⚠️ Continuing with Firebase deletion...');
+        print('⚠️ Backend deletion error: $e — continuing with Firebase...');
       }
 
-      print('🔥 Deleting Firebase account...');
       try {
         await currentUser!.delete();
-        print('✅ Firebase account deleted');
       } on FirebaseAuthException catch (e) {
         if (e.code == 'requires-recent-login') {
           return {
             'success': false,
-            'message':
-                'For security, please enter your password to continue',
+            'message': 'For security, please enter your password to continue',
             'requiresReauth': true,
           };
         }
         rethrow;
       }
 
-      print('🧹 Cleaning up local data...');
       await logout();
 
-      print('✅ Account deletion completed successfully');
       return {'success': true, 'message': 'Account deleted successfully'};
     } on FirebaseAuthException catch (e) {
-      print('❌ Firebase error during deletion: ${e.code} - ${e.message}');
-
       if (e.code == 'requires-recent-login') {
         return {
           'success': false,
-          'message':
-              'For security, please enter your password to continue',
+          'message': 'For security, please enter your password to continue',
           'requiresReauth': true,
         };
       }
-
       return {
         'success': false,
         'message': e.message ?? 'Failed to delete Firebase account',
       };
     } catch (e) {
-      print('❌ Unexpected error during deletion: $e');
       return {
         'success': false,
         'message': 'Failed to delete account: ${e.toString()}',

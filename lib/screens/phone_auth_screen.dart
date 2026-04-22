@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:lexilens/screens/otp_verification_screen.dart';
+import 'package:lexilens/screens/success_screen.dart';
 import 'package:lexilens/services/auth_service.dart';
+import 'package:lexilens/services/mongodb_service.dart';
 
 class PhoneAuthScreen extends StatefulWidget {
   final String email;
@@ -14,6 +15,7 @@ class PhoneAuthScreen extends StatefulWidget {
 class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   final _phoneController = TextEditingController();
   final _authService = AuthService();
+  final _mongoService = MongoDBService();
   final String _countryCode = '+91';
   bool _isLoading = false;
 
@@ -23,9 +25,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     super.dispose();
   }
 
-  Future<void> _continueWithPhone() async {
-    String fullPhoneNumber = _countryCode + _phoneController.text.trim();
-    
+  Future<void> _savePhoneAndContinue() async {
     if (_phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -39,63 +39,35 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     if (_phoneController.text.length < 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a valid phone number'),
+          content: Text('Please enter a valid 10-digit phone number'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
-      final result = await _authService.verifyPhoneNumber(
-        phoneNumber: fullPhoneNumber,
-      );
+      final userId = _authService.getUserId();
+      if (userId != null) {
+        final fullPhone = '$_countryCode${_phoneController.text.trim()}';
+        await _mongoService.updateSetting(userId, 'user_phone', fullPhone);
+      }
 
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-
-        if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('OTP sent! Use: 1234'),
-              backgroundColor: Color(0xFFB789DA),
-              duration: Duration(seconds: 3),
-            ),
-          );
-
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OTPVerificationScreen(
-                phoneNumber: fullPhoneNumber,
-                verificationId: result['verificationId'],
-              ),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        setState(() => _isLoading = false);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const SuccessScreen()),
+        );
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: $e'),
+            content: Text('Error saving phone number: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -103,33 +75,32 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
     }
   }
 
+  void _skipForNow() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const SuccessScreen()),
+    );
+  }
+
   void _addDigit(String digit) {
     if (_phoneController.text.length < 10) {
-      setState(() {
-        _phoneController.text += digit;
-      });
+      setState(() => _phoneController.text += digit);
     }
   }
 
   void _removeDigit() {
     if (_phoneController.text.isNotEmpty) {
-      setState(() {
-        _phoneController.text = _phoneController.text.substring(
-          0,
-          _phoneController.text.length - 1,
-        );
-      });
+      setState(() => _phoneController.text = _phoneController.text
+          .substring(0, _phoneController.text.length - 1));
     }
   }
 
   String _formatPhoneNumber() {
-    String text = _phoneController.text;
-    if (text.isEmpty) return '283 835 2999';
+    final text = _phoneController.text;
+    if (text.isEmpty) return '';
     String formatted = '';
     for (int i = 0; i < text.length; i++) {
-      if (i == 3 || i == 6) {
-        formatted += ' ';
-      }
+      if (i == 5) formatted += ' ';
       formatted += text[i];
     }
     return formatted;
@@ -137,178 +108,223 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool phoneComplete = _phoneController.text.length >= 10;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.close, 
-            color: Colors.black,
-          ),
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-        ),
-      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24.0,
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              const Text(
-                'Continue with Phone',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  fontFamily: 'OpenDyslexic',
+        child: Column(
+          children: [
+            // Header
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFB789DA), Color(0xFFC89EE5)],
                 ),
               ),
-              const SizedBox(height: 20),
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8D5F0),
-                  shape: BoxShape.circle,
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.5),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const Icon(
-                      Icons.phone_android,
-                      size: 50,
-                      color: Color(0xFFB789DA),
-                    ),
-                    Positioned(
-                      top: 20,
-                      right: 20,
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFB789DA),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-              const Text(
-                'Enter Your Phone Number',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey,
-                  fontFamily: 'OpenDyslexic',
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              child: Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '$_countryCode ${_formatPhoneNumber()}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'OpenDyslexic',
-                          color: _phoneController.text.isEmpty
-                              ? Colors.grey[500]
-                              : Colors.black,
-                        ),
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: _isLoading ? null : () => Navigator.pop(context),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Add Phone Number',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontFamily: 'OpenDyslexic',
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  ElevatedButton(
-                    onPressed: _isLoading
-                        ? null
-                        : (_phoneController.text.length >= 10
-                            ? _continueWithPhone
-                            : null),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFB789DA),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey[300],
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  TextButton(
+                    onPressed: _isLoading ? null : _skipForNow,
+                    child: const Text(
+                      'Skip',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontFamily: 'OpenDyslexic',
+                        fontSize: 14,
                       ),
                     ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text(
-                            'Continue',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              fontFamily: 'OpenDyslexic',
-                            ),
-                          ),
                   ),
                 ],
               ),
-              const Spacer(),
-              SizedBox(
-                width: 220,
-                child: GridView.count(
-                  shrinkWrap: true,
-                  crossAxisCount: 3,
-                  childAspectRatio: 1.4,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  physics: const NeverScrollableScrollPhysics(),
+            ),
+
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
                   children: [
-                    _buildNumberButton('1'),
-                    _buildNumberButton('2'),
-                    _buildNumberButton('3'),
-                    _buildNumberButton('4'),
-                    _buildNumberButton('5'),
-                    _buildNumberButton('6'),
-                    _buildNumberButton('7'),
-                    _buildNumberButton('8'),
-                    _buildNumberButton('9'),
-                    const SizedBox(), 
-                    _buildNumberButton('0'),
-                    _buildBackspaceButton(),
+                    const SizedBox(height: 28),
+
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE8D5F0),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.phone_android,
+                          size: 40, color: Color(0xFFB789DA)),
+                    ),
+                    const SizedBox(height: 16),
+
+                    const Text(
+                      'Enter your phone number',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenDyslexic',
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'This will be saved to your profile',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                        fontFamily: 'OpenDyslexic',
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Phone display
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 18),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8F0FF),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: phoneComplete
+                              ? const Color(0xFFB789DA)
+                              : Colors.grey[300]!,
+                          width: phoneComplete ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFB789DA),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              '+91',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'OpenDyslexic',
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              _phoneController.text.isEmpty
+                                  ? '_____ _____'
+                                  : _formatPhoneNumber(),
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 2,
+                                fontFamily: 'OpenDyslexic',
+                                color: _phoneController.text.isEmpty
+                                    ? Colors.grey[400]
+                                    : Colors.black87,
+                              ),
+                            ),
+                          ),
+                          if (phoneComplete)
+                            const Icon(Icons.check_circle,
+                                color: Color(0xFFB789DA), size: 22),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Numpad
+                    SizedBox(
+                      width: 240,
+                      child: GridView.count(
+                        shrinkWrap: true,
+                        crossAxisCount: 3,
+                        childAspectRatio: 1.4,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildNumberButton('1'),
+                          _buildNumberButton('2'),
+                          _buildNumberButton('3'),
+                          _buildNumberButton('4'),
+                          _buildNumberButton('5'),
+                          _buildNumberButton('6'),
+                          _buildNumberButton('7'),
+                          _buildNumberButton('8'),
+                          _buildNumberButton('9'),
+                          const SizedBox(),
+                          _buildNumberButton('0'),
+                          _buildBackspaceButton(),
+                        ],
+                      ),
+                    ),
+
+                    const Spacer(),
+
+                    // Continue button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : (phoneComplete ? _savePhoneAndContinue : null),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFB789DA),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey[300],
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : const Text(
+                                'Save & Continue',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: 'OpenDyslexic',
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
-              const Spacer(),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -317,22 +333,28 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   Widget _buildNumberButton(String number) {
     return InkWell(
       onTap: _isLoading ? null : () => _addDigit(number),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Colors.grey[300]!,
-          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey[300]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.08),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: Center(
           child: Text(
             number,
             style: const TextStyle(
-              fontSize: 24,
+              fontSize: 22,
               fontWeight: FontWeight.w600,
               fontFamily: 'OpenDyslexic',
+              color: Colors.black87,
             ),
           ),
         ),
@@ -343,21 +365,23 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen> {
   Widget _buildBackspaceButton() {
     return InkWell(
       onTap: _isLoading ? null : _removeDigit,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: Colors.grey[300]!,
-          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey[300]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.08),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         child: const Center(
-          child: Icon(
-            Icons.backspace_outlined,
-            size: 22,
-            color: Color(0xFFB789DA),
-          ),
+          child: Icon(Icons.backspace_outlined,
+              size: 20, color: Color(0xFFB789DA)),
         ),
       ),
     );
