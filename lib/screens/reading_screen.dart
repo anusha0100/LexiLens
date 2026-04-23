@@ -486,59 +486,42 @@ class _ReadingScreenState extends State<ReadingScreen>
       fontFamily = 'OpenDyslexic';
     }
 
-    if (state.readingState == ReadingState.idle) {
-      return Wrap(
-        children: words.map((word) {
-          final clean = _textSelectionService.cleanWord(word);
-          return _TappableWord(
-            word: word,
-            cleanWord: clean,
-            textColor: textColor,
-            fontSize: state.fontSize,
-            fontFamily: fontFamily,
-            lineSpacing: state.lineSpacing,
-            letterSpacing: fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
-            isHighlighted: state.isHighlighted,
-            onTap: () {
-              if (clean.isNotEmpty) {
-                context.read<AppBloc>().add(StartTextToSpeech(text: clean));
-              }
-            },
-            // FIX: Long-press triggers the word detail sheet with validated
-            // syllable breakdown (see _showWordDetail).
-            onLongPress: clean.isNotEmpty
-                ? () => _showWordDetail(context, clean)
-                : null,
-          );
-        }).toList(),
-      );
-    }
-
-    return RichText(
-      text: TextSpan(
-        children: words.asMap().entries.map((entry) {
-          final index = entry.key;
-          final word  = entry.value;
-          final isCurrent = index == state.currentWordIndex;
-          return TextSpan(
-            text: '$word ',
-            style: TextStyle(
-              color: isCurrent ? const Color(0xFFE57373) : textColor,
-              fontSize: state.fontSize,
-              fontFamily: fontFamily,
-              height: state.lineSpacing,
-              backgroundColor: isCurrent
-                  ? _kAccent.withOpacity(0.35)
-                  : (state.isHighlighted
-                      ? _kAccent.withOpacity(0.12)
-                      : null),
-              fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-              letterSpacing:
-                  fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
-            ),
-          );
-        }).toList(),
-      ),
+    // Render words as tappable widgets in both idle and playback states
+    return Wrap(
+      children: words.asMap().entries.map((entry) {
+        final index = entry.key;
+        final word = entry.value;
+        final clean = _textSelectionService.cleanWord(word);
+        final isCurrent = state.readingState != ReadingState.idle && 
+                         index == state.currentWordIndex;
+        
+        return _TappableWord(
+          word: word,
+          cleanWord: clean,
+          textColor: isCurrent ? const Color(0xFFE57373) : textColor,
+          fontSize: state.fontSize,
+          fontFamily: fontFamily,
+          lineSpacing: state.lineSpacing,
+          letterSpacing: fontFamily == 'OpenDyslexic' ? state.letterSpacing : 0,
+          isHighlighted: state.isHighlighted || isCurrent,
+          highlightColor: isCurrent 
+              ? _kAccent.withOpacity(0.35)
+              : (state.isHighlighted ? _kAccent.withOpacity(0.12) : null),
+          isBold: isCurrent,
+          onTap: () {
+            if (clean.isNotEmpty) {
+              // Tap on word always speaks that word with interrupt=true
+              // This provides immediate responsive feedback during playback
+              context.read<AppBloc>().add(StartTextToSpeech(text: clean));
+            }
+          },
+          // FIX: Long-press triggers the word detail sheet with validated
+          // syllable breakdown (see _showWordDetail).
+          onLongPress: clean.isNotEmpty
+              ? () => _showWordDetail(context, clean)
+              : null,
+        );
+      }).toList(),
     );
   }
 
@@ -1035,6 +1018,8 @@ class _TappableWord extends StatefulWidget {
   final double lineSpacing;
   final double letterSpacing;
   final bool isHighlighted;
+  final Color? highlightColor;
+  final bool isBold;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -1047,6 +1032,8 @@ class _TappableWord extends StatefulWidget {
     required this.lineSpacing,
     required this.letterSpacing,
     required this.isHighlighted,
+    this.highlightColor,
+    this.isBold = false,
     required this.onTap,
     this.onLongPress,
   });
@@ -1097,9 +1084,11 @@ class _TappableWordState extends State<_TappableWord>
               fontFamily: widget.fontFamily,
               height: widget.lineSpacing,
               letterSpacing: widget.letterSpacing,
-              backgroundColor: widget.isHighlighted
-                  ? _kAccent.withOpacity(0.12)
-                  : null,
+              fontWeight: widget.isBold ? FontWeight.bold : FontWeight.normal,
+              backgroundColor: widget.highlightColor ?? 
+                  (widget.isHighlighted
+                      ? _kAccent.withOpacity(0.12)
+                      : null),
               decoration: widget.cleanWord.isNotEmpty
                   ? TextDecoration.underline
                   : null,
