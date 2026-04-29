@@ -16,8 +16,7 @@ class MongoDBService {
     _authToken = token;
   }
 
-  /// Exposed getter so auth_service.dart can read the token when building
-  /// request headers for seed-defaults and similar calls.
+  
   String get authToken => _authToken;
 
   Map<String, String> get headers => {
@@ -72,7 +71,6 @@ class MongoDBService {
             Uri.parse('$baseUrl/documents'),
             headers: headers,
             body: jsonEncode(payload),
-            // Render free tier cold-starts can take 30-50s — 60s gives headroom.
           )
           .timeout(const Duration(seconds: 60));
 
@@ -259,7 +257,6 @@ class MongoDBService {
     }
   }
 
-  // ── TAG OPERATIONS ──────────────────────────────────────────────────────────
 
   Future<DocumentTag?> createTag(DocumentTag tag) async {
     try {
@@ -314,7 +311,6 @@ class MongoDBService {
     }
   }
 
-  // ── SETTINGS OPERATIONS ─────────────────────────────────────────────────────
 
   Future<bool> updateSetting(String userId, String key, dynamic value) async {
     try {
@@ -377,12 +373,6 @@ class MongoDBService {
     }
   }
 
-  // ── OCR CACHE OPERATIONS ────────────────────────────────────────────────────
-  // These methods expose the /api/ocr-cache endpoints introduced to satisfy the
-  // SDS DFD 1.1–1.4 requirement for an OCR Cache datastore (D1).
-
-  /// Check the remote OCR cache for a previously recognised image.
-  /// Returns the cached result map on a hit, or null on a miss / network error.
   Future<Map<String, dynamic>?> getOcrCache(String imageHash) async {
     try {
       final response = await http
@@ -403,7 +393,7 @@ class MongoDBService {
     }
   }
 
-  /// Store the result of a fresh ML Kit recognition pass in the remote cache.
+  
   Future<void> putOcrCache({
     required String imageHash,
     required String recognizedText,
@@ -426,7 +416,6 @@ class MongoDBService {
           )
           .timeout(const Duration(seconds: 10));
     } catch (e) {
-      // Non-fatal: caching is best-effort.
       print('OCR cache PUT error: $e');
     }
   }

@@ -36,7 +36,7 @@ class OCRService {
     return _devanagariRecognizer!;
   }
 
-  // ── Cache helpers ─────────────────────────────────────────────────────────
+
 
   String _hashImageBytes(Uint8List bytes) => sha256.convert(bytes).toString();
 
@@ -67,7 +67,7 @@ class OCRService {
   Map<String, int> get cacheStats =>
       {'hits': _hitCount, 'misses': _missCount, 'size': _memCache.length};
 
-  // ── Main API ──────────────────────────────────────────────────────────────
+  
 
   Future<Map<String, dynamic>> extractTextWithLanguage(
     String imagePath, {
@@ -81,15 +81,14 @@ class OCRService {
 
       final memHit = _memCacheGet(imageHash);
       if (memHit != null) {
-        print('🟢 OCR memory cache hit ($imageHash)');
+        print('OCR memory cache hit ($imageHash)');
         return memHit;
       }
 
       final remoteHit = await _mongoService.getOcrCache(imageHash);
       if (remoteHit != null) {
-        print('🟡 OCR remote cache hit ($imageHash)');
+        print('OCR remote cache hit ($imageHash)');
         _hitCount++;
-        // Store cache metadata but don't return yet — we still need blocks
         cachedMetadata = {
           'language': remoteHit['languageDetected'] ?? 'Unknown',
           'confidenceScore': remoteHit['confidenceScore'],
@@ -99,7 +98,7 @@ class OCRService {
     }
 
     _missCount++;
-    print('🔴 OCR cache miss — running ML Kit pipeline');
+    print('OCR cache miss — running ML Kit pipeline');
 
     final stopwatch = Stopwatch()..start();
     try {
@@ -113,21 +112,8 @@ class OCRService {
       RecognizedText recognizedText;
       String         detectedScript;
 
-      // FIX: Old logic compared total non-space char counts, which meant OCR
-      // noise (digits, punctuation) in the Devanagari pass could match or
-      // exceed the Latin letter count and cause wrong script selection.
-      //
-      // New approach:
-      //  1. Count *only* true Devanagari Unicode codepoints (U+0900–U+097F)
-      //     as the Devanagari signal — not the full non-space char count.
-      //  2. Require at least 3 real Devanagari chars AND a confidence ratio
-      //     ≥ 30 % of the Devanagari result's total non-space chars before
-      //     committing to the Devanagari script.
-      //  3. Latin letter count strips digits/punctuation to avoid inflating
-      //     the Latin score with shared numeric characters.
       final devCharCount  = RegExp(r'[\u0900-\u097F]')
           .allMatches(devanagariResult.text).length;
-      // Latin letters only (strip whitespace, digits, punctuation).
       final latinCharCount = latinResult.text
           .replaceAll(RegExp(r'[^\p{L}]', unicode: true), '').length;
       final devTotalNonSpace = devanagariResult.text
@@ -137,14 +123,12 @@ class OCRService {
           devTotalNonSpace > 0 ? devCharCount / devTotalNonSpace : 0.0;
 
       if (devCharCount >= 3 && devRatio >= 0.3) {
-        // Strong Devanagari signal.
         recognizedText = devanagariResult;
         detectedScript = 'Devanagari';
       } else if (latinCharCount > 0) {
         recognizedText = latinResult;
         detectedScript = 'Latin';
       } else if (devCharCount > 0) {
-        // Weak Devanagari signal but no Latin letters — still prefer it.
         recognizedText = devanagariResult;
         detectedScript = 'Devanagari';
       } else {
@@ -155,7 +139,6 @@ class OCRService {
       stopwatch.stop();
       final processingTimeMs = stopwatch.elapsedMilliseconds;
 
-      // Use cached language/confidence if available, otherwise detect fresh
       final detectedLanguage = cachedMetadata != null
           ? cachedMetadata['language'] as String
           : _detectLanguageFromText(recognizedText.text, detectedScript);
@@ -165,10 +148,8 @@ class OCRService {
 
       double? avgConfidence;
       if (cachedMetadata != null && cachedMetadata['confidenceScore'] != null) {
-        // Use cached confidence score
         avgConfidence = cachedMetadata['confidenceScore'] as double?;
       } else if (recognizedText.blocks.isNotEmpty) {
-        // Compute fresh confidence score from blocks
         final scores = recognizedText.blocks
             .expand((b) => b.lines)
             .expand((l) => l.elements)
@@ -207,7 +188,7 @@ class OCRService {
       return result;
     } catch (e) {
       stopwatch.stop();
-      print('❌ OCR Error: $e');
+      print('OCR Error: $e');
       rethrow;
     }
   }
@@ -220,7 +201,6 @@ class OCRService {
       final devResult =
           await _devanagariTextRecognizer.processImage(inputImage);
 
-      // FIX: Match the same ratio-based detection used in extractTextWithLanguage.
       final devCharCount =
           RegExp(r'[\u0900-\u097F]').allMatches(devResult.text).length;
       final devTotalNonSpace =
@@ -240,18 +220,7 @@ class OCRService {
     }
   }
 
-  // ── Language detection ────────────────────────────────────────────────────
-  //
-  // FIX: Threshold lowered from 5 → 4.  A score of 5 was too aggressive and
-  // caused plain-ASCII Spanish text (no diacritics, no ¿/¡) to fall through
-  // as English because the scorer could only accumulate points from function-
-  // word matches, which were capped at a low value.  4 lets the Spanish scorer
-  // fire reliably when ≥2 distinctive function words are present even without
-  // any accented characters.
-  //
-  // FIX: Removed very short and ambiguous words (e.g. " de ", " la ", " le ",
-  // " con ", " per ", " di ", " al ") from the scoring lists because they occur
-  // frequently in English proper nouns, addresses, and abbreviations.
+
 
   String _detectLanguageFromText(String text, String script) {
     if (text.isEmpty) return 'Unknown';
@@ -272,9 +241,7 @@ class OCRService {
     };
 
     String best      = 'English';
-    // FIX: Lowered from 5 → 4.  Requires clear evidence but now correctly
-    // catches Spanish text that lacks diacritics (e.g. menus, signs,
-    // plain-ASCII OCR output).
+  
     int    bestScore = 4;
     for (final entry in scores.entries) {
       if (entry.value > bestScore) {
@@ -297,7 +264,6 @@ class OCRService {
     return latinLanguages.contains(language);
   }
 
-  // ── Script helpers ────────────────────────────────────────────────────────
 
   bool _containsDevanagari(String text) =>
       RegExp(r'[\u0900-\u097F]').hasMatch(text);
@@ -316,36 +282,13 @@ class OCRService {
         text.contains('॥');
   }
 
-  // ── Scored Latin-language detectors ──────────────────────────────────────
-  //
-  // Scoring philosophy:
-  //  +5  — unique diacritics/punctuation that only appear in this language
-  //  +3  — words that are very distinctive and uncommon in English
-  //  +2  — high-frequency function words unlikely to appear in English prose
-  //  +1  — words that help (but avoid ultra-short words shared by many languages)
-  //
-  // We deliberately avoid scoring short words like " la ", " de ", " con "
-  // because they appear in English text (names, abbreviations, loanwords).
-
-  // FIX (Spanish): The old scorer was too reliant on diacritics and the
-  // inverted-punctuation ¿/¡ characters.  Plain-ASCII Spanish text from menus,
-  // signs, or low-quality OCR has neither, so it would score 0–3 and always
-  // lose to the English default.
-  //
-  // Changes:
-  //  • Added a broader set of high-frequency Spanish content words (+2 each).
-  //  • Function-word match now requires ≥2 hits AND awards funcCount+1 so that
-  //    3+ matches produce a score that clearly exceeds the new threshold of 4.
-  //  • Common ASCII transliterations of Spanish words (e.g. "tambien",
-  //    "senor") are scored so OCR output without diacritics is handled.
+  
   int _scoreSpanish(String text) {
     int score = 0;
     final lower = text.toLowerCase();
 
-    // Unique punctuation — extremely strong signal.
     if (lower.contains('¿') || lower.contains('¡')) score += 5;
 
-    // Distinctive Spanish words (accented / canonical forms).
     for (final w in [
       'está', 'también', 'usted', 'señor', 'señora',
       'español', 'nosotros', 'vosotros', 'están', 'también',
@@ -353,8 +296,6 @@ class OCRService {
       if (lower.contains(w)) score += 3;
     }
 
-    // High-frequency Spanish content words that rarely appear in English.
-    // ASCII-friendly forms included to catch diacritic-free OCR output.
     for (final w in [
       ' hola ', ' gracias ', ' bueno ', ' buena ', ' mucho ',
       ' mucha ', ' ahora ', ' tiempo ', ' siempre ', ' nunca ',
@@ -366,7 +307,6 @@ class OCRService {
       if (lower.contains(w)) score += 2;
     }
 
-    // Common function words — only accumulate if several appear together.
     int funcCount = 0;
     for (final w in [
       ' que ', ' para ', ' una ', ' este ', ' esto ',
@@ -375,11 +315,9 @@ class OCRService {
     ]) {
       if (lower.contains(w)) funcCount++;
     }
-    // Require ≥2 function words; weight grows with count so that 3+ hits
-    // reliably cross the detection threshold even without diacritics.
+    
     if (funcCount >= 2) score += funcCount + 1;
 
-    // Diacritics distinctive of Spanish (not shared with French/Portuguese).
     if (RegExp(r'[áéíóúñ]').hasMatch(text)) score += 3;
 
     return score;
@@ -388,7 +326,6 @@ class OCRService {
   int _scoreFrench(String text) {
     int score = 0;
     final lower = text.toLowerCase();
-    // Distinctive French words
     for (final w in [' vous ', ' nous ', ' dans ', ' avec ', ' est ',
                      ' sont ', ' cette ', ' chez ', ' leurs ', ' aussi ']) {
       if (lower.contains(w)) score += 2;
@@ -397,9 +334,7 @@ class OCRService {
                      'parce', 'maintenant', 'toujours']) {
       if (lower.contains(w)) score += 3;
     }
-    // French-specific diacritics (œ, ç, â, î, ô, û unique to French)
     if (RegExp(r'[œçâîûÿæ]').hasMatch(text)) score += 4;
-    // General accents (could be Portuguese too)
     if (RegExp(r'[àèéêë]').hasMatch(text)) score += 2;
     return score;
   }
@@ -407,9 +342,7 @@ class OCRService {
   int _scoreGerman(String text) {
     int score = 0;
     final lower = text.toLowerCase();
-    // German-unique diacritics — very strong signal
     if (RegExp(r'[äöüß]').hasMatch(text)) score += 5;
-    // Distinctive German words
     for (final w in [' nicht ', ' werden ', ' haben ', ' sein ',
                      ' dieser ', ' diese ', ' dieses ', ' auch ',
                      ' oder ', ' nach ']) {
@@ -424,7 +357,6 @@ class OCRService {
   int _scoreItalian(String text) {
     int score = 0;
     final lower = text.toLowerCase();
-    // Very distinctive Italian words
     for (final w in [' gli ', ' dello ', ' della ', ' sono ', ' siamo ',
                      ' questo ', ' questa ', ' anche ', ' come ',
                      ' perché ', ' quello ']) {
@@ -441,9 +373,7 @@ class OCRService {
   int _scorePortuguese(String text) {
     int score = 0;
     final lower = text.toLowerCase();
-    // Portuguese-unique characters — very strong signal
     if (RegExp(r'[ãõ]').hasMatch(text)) score += 5;
-    // Distinctive words
     for (final w in [' não ', ' uma ', ' você ', ' também ', ' isso ',
                      ' aqui ', ' fazer ', ' estar ']) {
       if (lower.contains(w)) score += 2;
@@ -458,7 +388,6 @@ class OCRService {
   int _scoreDutch(String text) {
     int score = 0;
     final lower = text.toLowerCase();
-    // Very distinctive Dutch words
     for (final w in [' het ', ' een ', ' worden ', ' hebben ', ' zijn ',
                      ' zoals ', ' maar ', ' nog ', ' ook ', ' aan ']) {
       if (lower.contains(w)) score += 2;
@@ -466,7 +395,6 @@ class OCRService {
     for (final w in ['nederland', 'dutch', 'goedendag', 'hallo']) {
       if (lower.contains(w)) score += 4;
     }
-    // "ij" digraph — distinctive to Dutch
     if (lower.contains('ij')) score += 3;
     return score;
   }

@@ -9,7 +9,7 @@ class DocumentExportService {
   factory DocumentExportService() => _instance;
   DocumentExportService._internal();
 
-  /// Export document as plain text file
+
   Future<File?> exportAsText({
     required String documentName,
     required String content,
@@ -39,7 +39,7 @@ class DocumentExportService {
       final dateFormatter = DateFormat('yyyy-MM-dd HH:mm:ss');
       final exportDate = dateFormatter.format(DateTime.now());
 
-      // Split content into pages (roughly 50 lines per page)
+      
       final lines = content.split('\n');
       final linesPerPage = 50;
       final pageCount = (lines.length / linesPerPage).ceil();
@@ -131,26 +131,26 @@ class DocumentExportService {
         );
       }
 
-      // Save PDF to temporary directory
+      
       final directory = await getTemporaryDirectory();
       final fileName = '${documentName}_${DateTime.now().millisecondsSinceEpoch}.pdf';
       final file = File('${directory.path}/$fileName');
 
       final bytes = await pdf.save();
       await file.writeAsBytes(bytes);
-      print('✅ PDF file exported: ${file.path}');
+      print('PDF file exported: ${file.path}');
       return file;
     } catch (e) {
-      print('❌ Error exporting PDF: $e');
+      print('Error exporting PDF: $e');
       return null;
     }
   }
 
-  /// Share document via native sharing mechanism
+  
   Future<bool> shareDocument({
     required String documentName,
     required String content,
-    required String format, // 'text' or 'pdf'
+    required String format, 
     String? detectedLanguage,
   }) async {
     try {
@@ -170,7 +170,7 @@ class DocumentExportService {
       }
 
       if (fileToShare == null || !await fileToShare.exists()) {
-        print('❌ File not created for sharing');
+        print('File not created for sharing');
         return false;
       }
 
@@ -180,15 +180,15 @@ class DocumentExportService {
         subject: documentName,
       );
 
-      print('✅ Document share invocation succeeded');
+      print('Document share invocation succeeded');
       return true;
     } catch (e) {
-      print('❌ Error sharing document: $e');
+      print('Error sharing document: $e');
       return false;
     }
   }
 
-  /// Share via text content (quick share without file export)
+  
   Future<bool> shareText({
     required String documentName,
     required String content,
@@ -199,15 +199,15 @@ class DocumentExportService {
         subject: documentName,
       );
 
-      print('✅ Text share invocation succeeded');
+      print('Text share invocation succeeded');
       return true;
     } catch (e) {
-      print('❌ Error sharing text: $e');
+      print('Error sharing text: $e');
       return false;
     }
   }
 
-  /// Clean up temporary files (optional)
+  
   Future<void> cleanupTemporaryFiles() async {
     try {
       final directory = await getTemporaryDirectory();
@@ -216,11 +216,11 @@ class DocumentExportService {
       for (final file in files) {
         if (file is File && (file.path.endsWith('.pdf') || file.path.endsWith('.txt'))) {
           await file.delete();
-          print('🗑️ Cleaned up: ${file.path}');
+          print('Cleaned up: ${file.path}');
         }
       }
     } catch (e) {
-      print('⚠️ Error cleaning up temporary files: $e');
+      print('Error cleaning up temporary files: $e');
     }
   }
 }

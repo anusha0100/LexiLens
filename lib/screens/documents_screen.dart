@@ -1,6 +1,3 @@
-// lib/screens/documents_screen.dart
-// FR-025: Document search added (search bar + query logic).
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lexilens/bloc/app_bloc.dart';
@@ -29,7 +26,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Derive colours from the active theme so dark mode is respected.
     final theme       = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -80,7 +76,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
 
           return Column(
             children: [
-              // ── Search bar ────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
                 child: TextField(
@@ -117,7 +112,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                 ),
               ),
 
-              // ── Document count ─────────────────────────────────────────────
+
               if (allDocs.isNotEmpty)
                 Padding(
                   padding:
@@ -138,7 +133,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   ),
                 ),
 
-              // ── Document list / empty state ────────────────────────────────
+              
               Expanded(
                 child: docs.isEmpty
                     ? Center(
@@ -296,9 +291,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Document card widget
-// ─────────────────────────────────────────────────────────────────────────────
 
 class _DocumentCard extends StatelessWidget {
   final Document document;

@@ -83,7 +83,7 @@ class _SplashScreenState extends State<SplashScreen>
         child: SafeArea(
           child: Stack(
             children: [
-              // ── Animated background orbs ─────────────────────────────────
+              
               AnimatedBuilder(
                 animation: _orbController,
                 builder: (_, __) => Stack(
@@ -116,7 +116,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
 
-              // ── Main content ─────────────────────────────────────────────
+
               Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -204,7 +204,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                     const SizedBox(height: 70),
 
-                    // "Tap to continue" pulsing hint
+                    
                     FadeTransition(
                       opacity: _subtitleOpacity,
                       child: AnimatedBuilder(

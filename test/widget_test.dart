@@ -1,21 +1,10 @@
-// test/widget_test.dart
-// ─────────────────────────────────────────────────────────────────────────────
-// LexiLens test suite covering:
-//   • Unit tests   – SyllableService, AuthService helpers
-//   • Widget tests – DocumentsScreen search bar, font-size range (FR-020)
-//   • Integration  – AppBloc state transitions (DeleteDocument, overlayOpacity)
-// ─────────────────────────────────────────────────────────────────────────────
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lexilens/services/syllable_service.dart';
 import 'package:lexilens/bloc/app_states.dart';
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 1. SyllableService – unit tests (FR-018)
-// ═════════════════════════════════════════════════════════════════════════════
+// 1. SyllableService : unit tests (FR-018)
 
 void main() {
-  // Initialise the Flutter binding before any test that touches platform channels.
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('SyllableService', () {
@@ -28,7 +17,6 @@ void main() {
 
     test('two-syllable word is split correctly', () {
       final result = svc.breakIntoSyllables('butter');
-      // "but-ter" → 2 syllables
       expect(result.length, 2);
     });
 
@@ -37,14 +25,12 @@ void main() {
       expect(result.length, greaterThanOrEqualTo(2));
     });
 
-    // formatSyllables uses middle-dot (·) as separator, not hyphen (-)
     test('formatSyllables joins with separator', () {
       final syllables = ['com', 'pu', 'ter'];
       final formatted = svc.formatSyllables(syllables);
       expect(formatted, contains('·'));
     });
 
-    // Service returns [''] for empty input — filter out empty segments
     test('empty string returns empty list', () {
       final result = svc.breakIntoSyllables('');
       expect(result.where((s) => s.isNotEmpty).toList(), isEmpty);
@@ -71,12 +57,9 @@ void main() {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 2. AuthService helpers – unit tests
-  // ═══════════════════════════════════════════════════════════════════════════
-
+  // 2. AuthService helpers : unit tests
+  
   group('AuthService.extractUsername', () {
-    // Pure string logic tested directly — no Firebase dependency needed
     String extractUsername(String email) {
       final local = email.contains('@') ? email.split('@')[0] : email;
       return local
@@ -103,10 +86,8 @@ void main() {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
   // 3. Font-size range – FR-020
-  // ═══════════════════════════════════════════════════════════════════════════
-
+  
   group('PreferencesScreen font-size range (FR-020)', () {
     test('min is 12pt and max is 36pt', () {
       const double kMin = 12.0;
@@ -126,16 +107,11 @@ void main() {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 4. AppState defaults – verifies initial state values without constructing
-  //    AppBloc (which eagerly starts FirebaseAuth listeners and flutter_tts,
-  //    neither of which has a native implementation in the test VM).
-  //    AppState is a plain const Dart object — no platform channels involved.
-  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 4. AppState defaults –
 
   group('AppState defaults', () {
-    // AppState() uses all default parameter values
-    // this is the initial state.
+    
     const state = AppState();
 
     test('initial state has empty recentDocuments', () {
@@ -157,7 +133,7 @@ void main() {
     });
 
     test('initial overlayOpacity is within 0.5–1.0 (FR-012)', () {
-      // AppState defaults overlayOpacity to 0.75
+     
       expect(state.overlayOpacity, inInclusiveRange(0.5, 1.0));
     });
 
@@ -181,10 +157,9 @@ void main() {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 5. Document search bar – FR-025
-  // ═══════════════════════════════════════════════════════════════════════════
-
+ 
+  // 5. Document search bar : FR-025
+  
   group('DocumentsScreen search bar (FR-025)', () {
     test('search hint text constant is non-empty', () {
       const expectedHint = 'Search documents…';
@@ -210,7 +185,7 @@ void main() {
         ),
       ];
 
-      // Name match
+
       String query = 'annual';
       var filtered = docs
           .where((d) =>
@@ -220,7 +195,7 @@ void main() {
       expect(filtered.length, 1);
       expect(filtered.first.id, '1');
 
-      // Content match
+
       query = 'roadmap';
       filtered = docs
           .where((d) =>
@@ -230,7 +205,7 @@ void main() {
       expect(filtered.length, 1);
       expect(filtered.first.id, '2');
 
-      // Empty query returns all
+
       query = '';
       filtered = query.isEmpty
           ? docs
@@ -243,9 +218,7 @@ void main() {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 6. Overlay opacity slider bounds – FR-012
-  // ═══════════════════════════════════════════════════════════════════════════
+  // 6. Overlay opacity slider bounds : FR-012
 
   group('Overlay opacity slider (FR-012)', () {
     test('50%–100% range constants are correct', () {
@@ -256,10 +229,9 @@ void main() {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 7. Dark mode preference key – FR-021
-  // ═══════════════════════════════════════════════════════════════════════════
-
+  
+  // 7. Dark mode preference key : FR-021
+  
   group('Dark mode preference (FR-021)', () {
     test('pref_dark_mode key string matches implementation', () {
       const key = 'pref_dark_mode';
@@ -267,9 +239,8 @@ void main() {
     });
   });
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 8. Live AR screen smoke – FR-005 to FR-009
-  // ═══════════════════════════════════════════════════════════════════════════
+
+  // 8. Live AR screen smoke : FR-005 to FR-009
 
   group('Live AR OCR (FR-005 to FR-009)', () {
     test('OCR throttle constant is at or below 200 ms', () {

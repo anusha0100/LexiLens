@@ -6,24 +6,6 @@ import 'package:lexilens/bloc/app_bloc.dart';
 import 'package:lexilens/bloc/app_events.dart';
 import 'package:lexilens/bloc/app_states.dart';
 
-// FIX: Filter selections now persist globally.
-//
-// Previous behaviour:
-//   • _PartOfSpeechToggle kept its own local `_isEnabled` bool that was never
-//     written to the bloc — toggling a POS had zero effect on the reading
-//     screen and the state was lost every time the widget was rebuilt.
-//   • SaveFilterSettings was a no-op.
-//
-// New behaviour:
-//   • AppState gains `posEnabled` (Map<String,bool>) tracking which POS are on.
-//   • Every toggle immediately fires TogglePos(label) to the AppBloc.
-//   • AppBloc persists the map via _saveUserSetting / _loadUserSettings so it
-//     survives app restarts.
-//   • The SAVE button calls SaveFilterSettings which writes the current colour
-//     and POS selections to the backend in one shot.
-//
-// NOTE: AppState / AppBloc changes are in their own files below.  This file
-// only changes the UI wiring.
 
 class FilterScreen extends StatelessWidget {
   const FilterScreen({super.key});
@@ -66,7 +48,6 @@ class FilterScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
 
-                      // ── Background colour picker ─────────────────────────
                       _SectionCard(
                         cardColor: cardColor,
                         icon: Icons.palette,
@@ -91,7 +72,7 @@ class FilterScreen extends StatelessWidget {
 
                       const SizedBox(height: 24),
 
-                      // ── Text colour picker ───────────────────────────────
+                      
                       _SectionCard(
                         cardColor: cardColor,
                         icon: Icons.text_fields,
@@ -116,7 +97,6 @@ class FilterScreen extends StatelessWidget {
 
                       const SizedBox(height: 24),
 
-                      // ── Parts of speech ──────────────────────────────────
                       Text(
                         'Color Coded Parts of Speech',
                         style: TextStyle(
@@ -137,8 +117,6 @@ class FilterScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
 
-                      // FIX: Each toggle reads from state.posEnabled and fires
-                      // TogglePos when changed — no more lost local state.
                       _posRow(context, state, cardColor,
                         label1: 'Noun',      color1: const Color(0xFF64B5F6),
                         label2: 'Adjectives',color2: const Color(0xFFE8BFD5),
@@ -158,7 +136,7 @@ class FilterScreen extends StatelessWidget {
                 ),
               ),
 
-              // ── Save button ──────────────────────────────────────────────
+
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: SizedBox(
@@ -166,8 +144,6 @@ class FilterScreen extends StatelessWidget {
                   height: 56,
                   child: ElevatedButton(
                     onPressed: () {
-                      // FIX: SaveFilterSettings now actually writes everything
-                      // to the backend (see app_bloc.dart).
                       context.read<AppBloc>().add(SaveFilterSettings());
                       Navigator.pop(context);
                     },
@@ -198,7 +174,6 @@ class FilterScreen extends StatelessWidget {
     );
   }
 
-  // ── POS row helper ──────────────────────────────────────────────────────────
 
   Widget _posRow(
     BuildContext context,
@@ -236,7 +211,7 @@ class FilterScreen extends StatelessWidget {
     );
   }
 
-  // ── Colour look-ups ─────────────────────────────────────────────────────────
+  
 
   Color _bgColor(int i) {
     const c = [
@@ -267,7 +242,7 @@ class FilterScreen extends StatelessWidget {
   }
 }
 
-// ── Section card ──────────────────────────────────────────────────────────────
+
 
 class _SectionCard extends StatelessWidget {
   final Color cardColor;
@@ -318,7 +293,6 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-// ── POS toggle (stateless — driven entirely by AppBloc) ───────────────────────
 
 class _PosToggle extends StatelessWidget {
   final String label;
@@ -376,7 +350,6 @@ class _PosToggle extends StatelessWidget {
   }
 }
 
-// ── Colour circle ─────────────────────────────────────────────────────────────
 
 class _ColorCircle extends StatelessWidget {
   final Color  color;

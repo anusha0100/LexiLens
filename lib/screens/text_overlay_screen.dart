@@ -1,29 +1,3 @@
-// lib/screens/text_overlay_screen.dart
-//
-// OVERLAY IMPROVEMENTS — this revision
-// ──────────────────────────────────────
-// Latin languages (previous revision):
-//   • Per-word pills aligned to ML Kit element bounding boxes.
-//   • _fitFontSize() shrinks font/letter-spacing to fit each box.
-//   • Text centred x+y inside each pill.
-//   • Fallback: proportional-by-char-count word distribution.
-//
-// Hindi / Devanagari (this revision):
-//   • NEW: _measureWords() uses TextPainter with the actual
-//     NotoSansDevanagari font to measure each word's rendered width.
-//     This replaces the char-count heuristic, which was inaccurate
-//     for Devanagari because glyph widths vary far more than in Latin.
-//   • Pill height for Devanagari is inflated by _kDevaPad (20 %) to
-//     expose matras (ि ी ु ू etc.) that sit above / below the baseline.
-//   • text height: null (system default) for Devanagari so Flutter's
-//     layout engine uses full font metrics; height:1.0 was clipping
-//     top matras.
-//   • _fitFontSize height-cap lowered to 0.70× for Devanagari
-//     (was 0.82×) to leave room for matras inside the pill.
-//   • Per-element path: when ML Kit DOES return element boxes for
-//     Devanagari (rare but possible), the same pill-fit logic applies.
-//   • Language gating is unchanged — OpenDyslexic is still Latin-only.
-
 // ignore_for_file: deprecated_member_use
 
 import 'dart:math' show min;
@@ -79,7 +53,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   late String _detectedScript;
   late bool   _canUseOpenDyslexic;
 
-  // ── Latin-language list (same as OCRService) ──────────────────────────────
+
   static const _kLatinLanguages = {
     'English', 'Spanish', 'French', 'German', 'Italian',
     'Portuguese', 'Dutch', 'Swedish', 'Norwegian', 'Danish',
@@ -420,7 +394,7 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
             return el.text.replaceAll(RegExp(r'[^\S\u0900-\u097F\w]'), '');
           }
         }
-        // Fallback: uniform split across line bbox.
+
         if (line.elements.isEmpty) {
           final b = line.boundingBox;
           final r = Rect.fromLTRB(
@@ -643,30 +617,9 @@ class _TextOverlayScreenState extends State<TextOverlayScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// OverlayStyle — CustomPainter
-//
-// Per-word pill design rules
-// ──────────────────────────
-// Latin (ML Kit returns per-word elements):
-//   • One pill per element, sized to element.boundingBox.
-//   • _fitFontSize() shrinks font/letter-spacing to fit.
-//   • Text centred x+y in the pill.
-//
-// Hindi / Devanagari (ML Kit returns line-level only):
-//   • Words split by whitespace from line.text.
-//   • _measureWords() renders each word with TextPainter ...
-//   • Pill width = (natural_width / total_natural_width) × available_line_width.
-//   • Pill height = OCR line height × (1 + _kDevaPad).
-//   • text height: null so matra ascenders/descenders are not clipped.
-//   • _fitFontSize height-cap = 0.70 for Devanagari (vs 0.82 for Latin).
-// ─────────────────────────────────────────────────────────────────────────────
 
-// Extra vertical padding for Devanagari pills (fraction of line height).
-const double _kDevaPad = 0.25;                           // NEW constant
-
-// Probe font size used only to measure relative word widths for Devanagari.
-const double _kDevaProbeFs = 20.0;                       // NEW constant
+const double _kDevaPad = 0.25;                           
+const double _kDevaProbeFs = 20.0;                       
 
 class OverlayStyle extends CustomPainter {
   final double          overlayOpacity;
@@ -714,12 +667,12 @@ class OverlayStyle extends CustomPainter {
            lang == 'hi' || lang == 'mr' || lang == 'ne';
   }
 
-  // ── Typography ─────────────────────────────────────────────────────────────
+  
 
   double get _preferredLetterSpacing {
     if (useOpenDyslexic && _isLatin) return 1.2;
     if (_isLatin)                    return 0.8;
-    if (_isDevanagari)              return 0.0; // matras link glyphs; spacing hurts
+    if (_isDevanagari)              return 0.0; 
     return 0.6;
   }
 
@@ -733,7 +686,7 @@ class OverlayStyle extends CustomPainter {
   double get _heightCapFactor => _isDevanagari ? 0.70 : 0.82;
   double? get _textHeight => _isDevanagari ? null : 1.0;
 
-  // Returns the largest (fontSize, letterSpacing) pair that fits text in maxW×maxH.
+  
   ({double fs, double ls}) _fitFontSize(
       String text, double initialFs, double maxW, double maxH) {
     double fs = min(initialFs, maxH * _heightCapFactor).clamp(6.0, 72.0);
@@ -757,13 +710,13 @@ class OverlayStyle extends CustomPainter {
 
       if (tp.width <= maxW + 1) break;
 
-      // 1. Reduce letter-spacing first (cheaper, keeps font readable).
+
       if (ls > 0.1) {
         ls = (ls * 0.7).clamp(0.0, ls);
         continue;
       }
 
-      // 2. Then scale font size down proportionally.
+
       final ratio = maxW / tp.width;
       final next  = (fs * ratio * 0.94).clamp(6.0, fs - 0.5);
       if (next >= fs) break; // can't shrink further
@@ -773,7 +726,7 @@ class OverlayStyle extends CustomPainter {
     return (fs: fs, ls: ls);
   }
 
-  // ── Devanagari word-width measurement ─────────────────────────────────────
+  
   List<double> _measureWords(List<String> words) {
     return words.map((w) {
       final tp = TextPainter(
@@ -796,11 +749,10 @@ class OverlayStyle extends CustomPainter {
   String? get _fontFamily {
     if (useOpenDyslexic && _isLatin) return 'OpenDyslexic';
     if (_isDevanagari)               return 'NotoSansDevanagari';
-    return null; // system default for all other scripts
+    return null; 
   }
 
-  // ── Paint ──────────────────────────────────────────────────────────────────
-
+  
   @override
   void paint(Canvas canvas, Size size) {
     if (textBlocks.isEmpty ||
@@ -816,8 +768,7 @@ class OverlayStyle extends CustomPainter {
     final wgf = _wordGapFactor;
     final fs  = fontSize.clamp(8.0, 36.0);
 
-    // Fill paint: light-purple tint visible on BOTH white paper and dark
-    // backgrounds. The previous near-white was invisible on white paper scans.
+    
     final bgPaint = Paint()
       ..color = const Color(0xFFDFB8F8).withOpacity(overlayOpacity)
       ..style = PaintingStyle.fill;
@@ -864,7 +815,7 @@ class OverlayStyle extends CustomPainter {
         final lineActive =
             currentWordIndex >= lineStart && currentWordIndex < lineEnd;
 
-        // ── Per-element path: use ML Kit per-word bounding boxes ─────────────
+
         if (line.elements.isNotEmpty) {
           for (int wi = 0; wi < line.elements.length; wi++) {
             final el = line.elements[wi];
@@ -880,7 +831,7 @@ class OverlayStyle extends CustomPainter {
 
             final isActive = lineActive && (globalWordIdx + wi) == currentWordIndex;
 
-            // Pill exactly on the OCR word bounding box (adjusted for Devanagari).
+            
             final pillRect = RRect.fromRectAndRadius(
               Rect.fromLTWH(wL, wT2, wW, wH),
               const Radius.circular(4),
@@ -898,22 +849,21 @@ class OverlayStyle extends CustomPainter {
                 text: el.text,
                 style: TextStyle(
                   color:         isActive ? Colors.red.shade800 : Colors.black87,
-                  fontSize:      effFs,                  // was: fs
+                  fontSize:      effFs,                  
                   fontFamily:    ff,
                   fontWeight:    isActive ? FontWeight.bold : FontWeight.w600,
-                  height:        _textHeight,            // was: 1.0
-                  letterSpacing: effLs,                  // was: ls (fixed)
+                  height:        _textHeight,            
+                  letterSpacing: effLs,                  
                 ),
               ),
               textDirection:   TextDirection.ltr,
               textScaleFactor: 1.0,
               maxLines:        1,
-            )..layout(maxWidth: wW + 2);                 // was: wW + ls * el.text.length + 16
+            )..layout(maxWidth: wW + 2);                 
 
-            // Centre text inside the pill.
             final textX = wL + ((wW - tp.width)  / 2).clamp(0.0, double.infinity);
             final textY = wT2 + ((wH - tp.height) / 2).clamp(0.0, double.infinity);
-            tp.paint(canvas, Offset(textX, textY));      // was: fixed vPad-offset formula
+            tp.paint(canvas, Offset(textX, textY));      
           }
           globalWordIdx += line.elements.length;
         } else if (words.isNotEmpty) {

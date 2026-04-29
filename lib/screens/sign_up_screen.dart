@@ -3,10 +3,7 @@ import 'package:lexilens/screens/phone_auth_screen.dart';
 import 'package:lexilens/screens/log_in_screen.dart';
 import 'package:lexilens/services/auth_service.dart';
 
-// FIX: Improved Sign Up screen UI/UX.
-// • Matches the redesigned LogInScreen visual language (gradient bg, card form).
-// • Cleaner field labels + consistent spacing.
-// • Terms checkbox row is more compact and accessible.
+
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -127,7 +124,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Heading ──────────────────────────────────────────────────
+
               const Text(
                 'Create Account',
                 style: TextStyle(
@@ -149,7 +146,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
               const SizedBox(height: 28),
 
-              // ── Form card ────────────────────────────────────────────────
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -301,7 +297,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
               const SizedBox(height: 24),
 
-              // ── Login link ────────────────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

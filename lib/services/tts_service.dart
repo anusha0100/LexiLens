@@ -54,7 +54,6 @@ class TTSService {
   int  get currentWordIndex => _currentWordIndex;
   VoiceSettings get voiceSettings => _voiceSettings;
 
-  // ── Init ──────────────────────────────────────────────────────────────────
 
   Future<void> initialize() async {
     try {
@@ -105,7 +104,7 @@ class TTSService {
     });
   }
 
-  // ── Settings ──────────────────────────────────────────────────────────────
+
 
   Future<void> setSpeechRate(double rate) async {
     _voiceSettings.speechRate = rate;
@@ -149,12 +148,6 @@ class TTSService {
     }
   }
 
-  // ── Speak ─────────────────────────────────────────────────────────────────
-
-  /// FIX: [interrupt] now defaults to TRUE.
-  /// Every new speak() call (word tap, play button, back-to-back sentences)
-  /// immediately stops the previous utterance so audio is always responsive.
-  /// Pass interrupt:false only if you explicitly want serialised playback.
   Future<void> speak(
     String text, {
     String? detectedLanguage,
@@ -200,8 +193,7 @@ class TTSService {
     await _setTtsLanguageAndVoice(langCode);
     await _flutterTts.speak(item.text);
 
-    // Resolve the completer immediately after handing off to the engine —
-    // the engine calls the completion handler when audio actually finishes.
+    
     if (!item.completer.isCompleted) item.completer.complete();
   }
 
@@ -229,7 +221,6 @@ class TTSService {
     return null;
   }
 
-  // ── Pause / Resume / Stop ─────────────────────────────────────────────────
 
   Future<void> pause() async {
     if (_isPlaying && !_isPaused) {
@@ -242,8 +233,7 @@ class TTSService {
   Future<void> resume() async {
     if (!_isPaused || _currentText.isEmpty) return;
 
-    // FIX: Rebuild the remaining text from the word list so we don't resume
-    // mid-word from a stale byte-offset, and avoid calling speak() recursively.
+  
     final remaining = _currentWordIndex < _words.length
         ? _words.sublist(_currentWordIndex).join(' ')
         : _currentText;
@@ -266,7 +256,7 @@ class TTSService {
     _processingQueue  = false;
   }
 
-  // ── Compat shim ───────────────────────────────────────────────────────────
+  
 
   Future<void> setSpeed(double speed) => setSpeechRate(speed);
 
@@ -275,7 +265,7 @@ class TTSService {
     return _availableVoices;
   }
 
-  // ── Language helpers ──────────────────────────────────────────────────────
+  
 
   bool _containsDevanagari(String text) =>
       RegExp(r'[\u0900-\u097F]').hasMatch(text);

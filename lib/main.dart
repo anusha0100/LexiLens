@@ -41,7 +41,7 @@ Future<void> _testBackendConnection() async {
   }
 }
 
-// ─── Centralised colour tokens ────────────────────────────────────────────────
+
 class AppColors {
   // Brand
   static const purple      = Color(0xFF7B4FA6);
@@ -84,7 +84,6 @@ class LexiLens extends StatelessWidget {
             title: 'LexiLens',
             themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
 
-            // ── Light Theme ────────────────────────────────────────────
             theme: ThemeData(
               useMaterial3: true,
               brightness: Brightness.light,
@@ -120,7 +119,6 @@ class LexiLens extends StatelessWidget {
               ),
             ),
 
-            // ── Dark Theme ─────────────────────────────────────────────
             darkTheme: ThemeData(
               useMaterial3: true,
               brightness: Brightness.dark,

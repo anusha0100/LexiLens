@@ -9,14 +9,14 @@ import 'package:lexilens/widgets/reading_ruler.dart';
 import 'package:lexilens/services/text_selection_service.dart';
 import 'package:lexilens/services/syllable_service.dart';
 
-// ── Colour palette (never changes between states) ──────────────────────────
+
 const _kPrimary   = Color(0xFF7B4FA6);
 const _kAccent    = Color(0xFFB789DA);
 const _kSurface   = Color(0xFF1F1A2E);
 const _kOnSurface = Color(0xFFEDE0F7);
 const _kBar       = Color(0xFF2D2545);
 
-// ── Part-of-speech colour coding ─────────────────────────────────────────────
+
 const _kPosColors = <String, Color>{
   'noun':        Color(0xFF64B5F6),
   'verb':        Color(0xFF81C784),
@@ -30,7 +30,7 @@ const _kPosColors = <String, Color>{
   'other':       Color(0xFFB0BEC5),
 };
 
-// ── Minimal POS classifier ────────────────────────────────────────────────────
+
 String _classifyPos(String word) {
   final w = word.toLowerCase().replaceAll(RegExp(r"[^a-z']"), '');
   if (w.isEmpty) return 'other';
@@ -82,19 +82,13 @@ String _classifyPos(String word) {
   return 'noun';
 }
 
-// ── FIX: Syllable validation helper ──────────────────────────────────────────
-// Returns true when the SyllableService result looks suspicious:
-//   • The service returned the word unsplit (single chunk == the whole word)
-//     for a word longer than 4 letters — likely a dictionary miss.
-//   • A naive fallback (vowel-group split) is used instead and the bottom-sheet
-//     shows a subtle "review" badge so the user knows it is auto-generated.
+
 bool _syllableLooksSuspect(String word, List<String> syllables) {
   if (word.length <= 4) return false;
   return syllables.length == 1 && syllables[0].toLowerCase() == word.toLowerCase();
 }
 
-/// Naive vowel-group fallback used when the rule-based service fails to split.
-/// Not perfect, but almost always better than showing the full unsplit word.
+
 List<String> _naiveSplit(String word) {
   const vowels = 'aeiouy';
   final result = <String>[];
@@ -109,8 +103,7 @@ List<String> _naiveSplit(String word) {
       seenV = true;
     } else if (seenV && i + 1 < word.length) {
       final next = word[i + 1].toLowerCase();
-      // Split after a consonant that follows a vowel, unless the next char is
-      // also a consonant (keep consonant clusters together).
+    
       if (vowels.contains(next)) {
         result.add(buf.toString());
         buf.clear();
@@ -134,7 +127,7 @@ class _ReadingScreenState extends State<ReadingScreen>
   final _textSelectionService = TextSelectionService();
   final _syllableService = SyllableService();
 
-  // ── FIX: Stop TTS immediately when the system back button is pressed ───────
+  
   Future<bool> _onWillPop() async {
     context.read<AppBloc>().add(StopTextToSpeech());
     return true;
@@ -253,7 +246,6 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── AppBar ─────────────────────────────────────────────────────────────────
 
   PreferredSizeWidget _buildAppBar(
       BuildContext context, AppState state, String title) {
@@ -302,7 +294,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Control panel ──────────────────────────────────────────────────────────
+
 
   Widget _buildControlPanel(BuildContext context, AppState state) {
     return Container(
@@ -334,7 +326,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Playback bar ───────────────────────────────────────────────────────────
+
 
   Widget _buildPlaybackBar(
       BuildContext context, AppState state, document) {
@@ -419,7 +411,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     }
   }
 
-  // ── Bottom navigation ──────────────────────────────────────────────────────
+
 
   Widget _buildBottomBar(BuildContext context, AppState state) {
     return Container(
@@ -461,7 +453,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Text rendering ─────────────────────────────────────────────────────────
+
 
   Widget _buildText(BuildContext context, AppState state,
       dynamic document, Color textColor) {
@@ -486,7 +478,7 @@ class _ReadingScreenState extends State<ReadingScreen>
       fontFamily = 'OpenDyslexic';
     }
 
-    // Render words as tappable widgets in both idle and playback states
+
     return Wrap(
       children: words.asMap().entries.map((entry) {
         final index = entry.key;
@@ -510,13 +502,10 @@ class _ReadingScreenState extends State<ReadingScreen>
           isBold: isCurrent,
           onTap: () {
             if (clean.isNotEmpty) {
-              // Tap on word always speaks that word with interrupt=true
-              // This provides immediate responsive feedback during playback
               context.read<AppBloc>().add(StartTextToSpeech(text: clean));
             }
           },
-          // FIX: Long-press triggers the word detail sheet with validated
-          // syllable breakdown (see _showWordDetail).
+          
           onLongPress: clean.isNotEmpty
               ? () => _showWordDetail(context, clean)
               : null,
@@ -530,13 +519,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     return RegExp(r'^[a-zA-Z0-9\s\p{P}]+$', unicode: true).hasMatch(sample);
   }
 
-  // ── Word detail bottom-sheet ───────────────────────────────────────────────
-  //
-  // FIX: Syllable validation.
-  //  1. Ask SyllableService for the breakdown.
-  //  2. If the result looks suspect (unsplit word > 4 chars) fall back to a
-  //     naive vowel-group split and show a "needs review" badge in the sheet.
-  //  3. The user sees the best available breakdown either way, never a blank.
+  
 
   void _showWordDetail(BuildContext context, String word) {
     if (word.isEmpty) return;
@@ -590,7 +573,7 @@ class _ReadingScreenState extends State<ReadingScreen>
               ),
               const SizedBox(height: 20),
 
-              // ── Syllable display ──────────────────────────────────────────
+              
               Text(
                 formatted,
                 textAlign: TextAlign.center,
@@ -605,7 +588,7 @@ class _ReadingScreenState extends State<ReadingScreen>
 
               const SizedBox(height: 6),
 
-              // Syllable count + optional "needs review" badge
+              
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -645,7 +628,7 @@ class _ReadingScreenState extends State<ReadingScreen>
               Divider(color: _kAccent.withOpacity(0.25)),
               const SizedBox(height: 16),
 
-              // ── POS badge ─────────────────────────────────────────────────
+              
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -685,7 +668,7 @@ class _ReadingScreenState extends State<ReadingScreen>
 
               const SizedBox(height: 24),
 
-              // ── Syllable chips ────────────────────────────────────────────
+              
               Wrap(
                 spacing: 10,
                 runSpacing: 8,
@@ -735,7 +718,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Settings dialog ──────────────────────────────────────────────────────
+
 
   void _showSettingsDialog(BuildContext context, AppState state) {
     showDialog(
@@ -932,7 +915,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Settings helpers ───────────────────────────────────────────────────────
+  
 
   Widget _settingsLabel(String text) => Text(text,
       style: const TextStyle(
@@ -978,7 +961,7 @@ class _ReadingScreenState extends State<ReadingScreen>
     );
   }
 
-  // ── Colour helpers ─────────────────────────────────────────────────────────
+  
 
   Color _getBackgroundColor(int index) {
     const colors = [
@@ -1007,7 +990,7 @@ class _ReadingScreenState extends State<ReadingScreen>
   }
 }
 
-// ── Tappable word widget ──────────────────────────────────────────────────────
+
 
 class _TappableWord extends StatefulWidget {
   final String word;
@@ -1102,7 +1085,7 @@ class _TappableWordState extends State<_TappableWord>
   }
 }
 
-// ── Zoom badge ────────────────────────────────────────────────────────────────
+
 
 class _ZoomBadge extends StatelessWidget {
   final double zoom;
@@ -1135,7 +1118,7 @@ class _ZoomBadge extends StatelessWidget {
   }
 }
 
-// ── Control button ────────────────────────────────────────────────────────────
+
 
 class _ControlButton extends StatelessWidget {
   final IconData icon;

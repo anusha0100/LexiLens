@@ -1,27 +1,3 @@
-// lib/screens/live_ar_screen.dart
-// FR-005 to FR-009 – Live real-time AR camera OCR with dyslexia-friendly overlay
-//
-// FIXES in this revision
-// ──────────────────────
-// 1. Language-gated OpenDyslexic font: the dyslexic font is applied ONLY when
-//    the detected script is Latin (English, Spanish, French, German, Italian,
-//    Portuguese, Dutch, etc.).  For Devanagari (Hindi/Marathi/Sanskrit) and any
-//    other non-Latin script the font falls back to the appropriate system font
-//    so glyphs are never rendered as □ boxes.
-//
-// 2. Recogniser pipeline runs Latin first then Devanagari; picks the result
-//    with the strongest signal (ratio-based, matching OCRService logic).
-//
-// 3. _ArOverlayPainter now receives `detectedScript` so it can always choose
-//    the correct font regardless of the useOpenDyslexic toggle state.
-//
-// 4. Text overlay spacing overhaul:
-//    • wordGapFactor raised to 0.65em (OpenDyslexic) / 0.50em (Latin).
-//    • letterSpacing raised to 1.6 (OpenDyslexic) / 1.1 (plain Latin).
-//    • Background pill inflated on ALL four sides by vPad.
-//    • Per-element TextPainter maxWidth: elW + ls*len + 16 (was +8).
-//    • Fallback word-loop cursor resets to lineRect.left+4 per line.
-
 // ignore_for_file: deprecated_member_use
 
 import 'dart:async';
@@ -46,9 +22,6 @@ const _kTextStalenessMs      = 2500;
 
 bool _isLatinScript(String? script) => script == 'Latin';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// StabilizedTextBlock / TextStabilizer
-// ─────────────────────────────────────────────────────────────────────────────
 class StabilizedTextBlock {
   TextBlock mlBlock;
   int       seenCount;
@@ -88,9 +61,6 @@ class TextStabilizer {
   void clear() => _memory.clear();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LiveArScreen
-// ─────────────────────────────────────────────────────────────────────────────
 class LiveArScreen extends StatefulWidget {
   const LiveArScreen({super.key});
   @override
@@ -319,7 +289,7 @@ class _LiveArScreenState extends State<LiveArScreen> with WidgetsBindingObserver
     super.dispose();
   }
 
-  // ─── Build ──────────────────────────────────────────────────────────────────
+  
 
   @override
   Widget build(BuildContext context) {
@@ -532,21 +502,42 @@ class _LiveArScreenState extends State<LiveArScreen> with WidgetsBindingObserver
 
   Widget _slider(BuildContext ctx, StateSetter setModal,
       String label, double value, double min, double max, ValueChanged<double> cb) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: TextStyle(fontFamily: 'OpenDyslexic',
-            color: Theme.of(ctx).colorScheme.onSurface)),
-        Text(value.toStringAsFixed(1), style: const TextStyle(
-            fontFamily: 'OpenDyslexic', color: _kPrimary, fontWeight: FontWeight.bold)),
-      ]),
-      Slider(value: value, min: min, max: max, activeColor: _kAccent, onChanged: cb),
-    ]);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start, 
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+          children: [
+            Text(
+              label, 
+              style: TextStyle(
+                fontFamily: 'OpenDyslexic',
+                color: Theme.of(ctx).colorScheme.onSurface,
+              ),
+            ),
+            Text(
+              value.toStringAsFixed(1), 
+              style: const TextStyle(
+                fontFamily: 'OpenDyslexic', 
+                color: _kPrimary, 
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: value, 
+          min: min, 
+          max: max, 
+          activeColor: _kAccent, 
+          onChanged: cb,
+        ),
+      ],
+    );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _CoverTransform
-// ─────────────────────────────────────────────────────────────────────────────
+
 class _CoverTransform {
   final double scale, cropX, cropY;
 
@@ -569,14 +560,11 @@ class _CoverTransform {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _ArOverlayPainter
-// ─────────────────────────────────────────────────────────────────────────────
 class _ArOverlayPainter extends CustomPainter {
   final List<TextBlock> blocks;
   final Size   rawImageSize;
   final int    sensorDeg;
-  final bool   useOpenDyslexic;  // pre-gated: false when script is non-Latin
+  final bool   useOpenDyslexic;  
   final String detectedScript;
   final double fontSize;
   final double opacity;
@@ -712,9 +700,7 @@ class _ArOverlayPainter extends CustomPainter {
       old.opacity         != opacity;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _SyllablePopup
-// ─────────────────────────────────────────────────────────────────────────────
+
 class _SyllablePopup extends StatelessWidget {
   final String word; final List<String> syllables;
   final Offset position; final VoidCallback onDismiss;

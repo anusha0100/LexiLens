@@ -1,4 +1,3 @@
-// lib/screens/preferences_screen.dart
 // ignore_for_file: deprecated_member_use
 
 import 'package:flutter/material.dart';
@@ -99,8 +98,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Use Theme.of(context) directly — no local Theme wrapper that was
-    // overriding the global MaterialApp darkTheme and stripping the colour scheme.
     final theme       = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final isDark      = theme.brightness == Brightness.dark;
@@ -162,7 +159,6 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                       Divider(color: border),
                       const SizedBox(height: 24),
 
-                      // ── Reading ───────────────────────────────────────────
                       _sectionTitle('Reading Preferences', onBg),
                       _switchTile(
                         title:    'Word Highlighting',
@@ -199,7 +195,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                       Divider(color: border),
                       const SizedBox(height: 24),
 
-                      // ── Font ──────────────────────────────────────────────
+                      
                       _sectionTitle('Font Preferences', onBg),
                       _buildFontSelector(tile, border, onBg, context),
                       const SizedBox(height: 16),
@@ -209,7 +205,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
                       Divider(color: border),
                       const SizedBox(height: 24),
 
-                      // ── General ───────────────────────────────────────────
+                      
                       _sectionTitle('General', onBg),
                       _switchTile(
                         title:    'Auto-Save Documents',
@@ -256,7 +252,7 @@ class _PreferencesScreenState extends State<PreferencesScreen> {
     );
   }
 
-  // ── Reusable helpers ───────────────────────────────────────────────────────
+  
 
   Widget _sectionTitle(String title, Color onBg) {
     return Padding(

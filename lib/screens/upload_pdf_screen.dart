@@ -176,8 +176,7 @@ class _UploadPDFScreenState extends State<UploadPDFScreen> {
     });
 
     try {
-      // Always refresh the Firebase token before API calls —
-      // tokens expire after 1 hour and a stale token causes silent failures.
+     
       final token = await user.getIdToken(true);
       if (token != null) {
         _mongoService.setAuthToken(token);

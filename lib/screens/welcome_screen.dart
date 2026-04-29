@@ -61,7 +61,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           children: [
             const SizedBox(height: 48),
 
-            // ── Heading ────────────────────────────────────────────────────
+            
             SlideTransition(
               position: _headingSlide,
               child: FadeTransition(
@@ -97,7 +97,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
             const SizedBox(height: 40),
 
-            // ── Illustration card ──────────────────────────────────────────
+            
             Expanded(
               child: ScaleTransition(
                 scale: _cardScale,

@@ -2,15 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:lexilens/screens/sign_up_screen.dart';
 import 'package:lexilens/screens/log_in_screen.dart';
 
-// FIX: Redesigned pre-login landing screen.
-// Changes vs original:
-//  • Full-height gradient background (matches the brand purple palette).
-//  • Logo + wordmark lifted into a proper hero section at the top.
-//  • Illustration centred in a rounded card with subtle shadow.
-//  • Tagline and sub-copy use a clear typographic hierarchy.
-//  • Buttons are larger, bolder, and correctly spaced.
-//  • "Already have an account?" row replaced with a cleaner inline link.
-//  • All existing asset paths preserved.
 
 class AuthLandingScreen extends StatelessWidget {
   const AuthLandingScreen({super.key});
@@ -43,7 +34,7 @@ class AuthLandingScreen extends StatelessWidget {
               children: [
                 const SizedBox(height: 32),
 
-                // ── Brand mark ───────────────────────────────────────────────
+                
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -82,7 +73,7 @@ class AuthLandingScreen extends StatelessWidget {
 
                 const SizedBox(height: 36),
 
-                // ── Hero illustration ─────────────────────────────────────────
+                
                 Container(
                   width: size.width * 0.78,
                   height: size.width * 0.72,
@@ -111,7 +102,7 @@ class AuthLandingScreen extends StatelessWidget {
 
                 const SizedBox(height: 36),
 
-                // ── Headlines ────────────────────────────────────────────────
+                
                 const Text(
                   'Read with confidence',
                   textAlign: TextAlign.center,
@@ -139,7 +130,7 @@ class AuthLandingScreen extends StatelessWidget {
 
                 const Spacer(),
 
-                // ── Sign Up button ────────────────────────────────────────────
+                
                 SizedBox(
                   width: double.infinity,
                   height: 56,
@@ -172,7 +163,7 @@ class AuthLandingScreen extends StatelessWidget {
 
                 const SizedBox(height: 14),
 
-                // ── Log In ghost button ───────────────────────────────────────
+                
                 SizedBox(
                   width: double.infinity,
                   height: 56,

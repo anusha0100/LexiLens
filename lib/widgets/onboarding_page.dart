@@ -73,7 +73,7 @@ class _OnboardingPageState extends State<OnboardingPage>
         children: [
           const SizedBox(height: 40),
 
-          // ── Floating illustration card ──────────────────────────────────
+
           ScaleTransition(
             scale: _imageScale,
             child: FadeTransition(
@@ -108,7 +108,6 @@ class _OnboardingPageState extends State<OnboardingPage>
 
           const Spacer(),
 
-          // ── Title ────────────────────────────────────────────────────────
           SlideTransition(
             position: _titleSlide,
             child: FadeTransition(
@@ -129,7 +128,6 @@ class _OnboardingPageState extends State<OnboardingPage>
 
           const SizedBox(height: 14),
 
-          // ── Description ─────────────────────────────────────────────────
           SlideTransition(
             position: _descSlide,
             child: FadeTransition(

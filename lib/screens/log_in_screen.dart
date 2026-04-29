@@ -3,12 +3,6 @@ import 'package:lexilens/screens/sign_up_screen.dart';
 import 'package:lexilens/screens/home_screen.dart';
 import 'package:lexilens/services/auth_service.dart';
 
-// FIX: Improved Log In screen UI/UX.
-// • Light gradient background matching brand palette.
-// • Form wrapped in a floating card — visual separation from background.
-// • Field labels use bolder weight; inputs have softer fill + clear focus ring.
-// • Consistent 16-unit vertical rhythm between sections.
-// • "Forget password?" link right-aligned with reduced visual weight.
 
 class LogInScreen extends StatefulWidget {
   const LogInScreen({super.key});
@@ -147,7 +141,7 @@ class _LogInScreenState extends State<LogInScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Heading ──────────────────────────────────────────────────
+              
               const Text(
                 'Log In',
                 style: TextStyle(
@@ -169,7 +163,7 @@ class _LogInScreenState extends State<LogInScreen> {
 
               const SizedBox(height: 28),
 
-              // ── Form card ────────────────────────────────────────────────
+              
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -306,7 +300,7 @@ class _LogInScreenState extends State<LogInScreen> {
 
               const SizedBox(height: 24),
 
-              // ── Sign up link ──────────────────────────────────────────────
+              
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
